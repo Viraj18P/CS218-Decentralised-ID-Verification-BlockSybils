@@ -6,7 +6,8 @@ import {DIDRegistry} from "../src/DIDRegistry.sol";
 import {RevocationRegistry} from "../src/RevocationRegistry.sol";
 import {CredentialMetadataRegistry} from "../src/CredentialMetadataRegistry.sol";
 import {CredentialVerifier} from "../src/CredentialVerifier.sol";
-import {MockGroth16Verifier} from "../src/mocks/MockGroth16Verifier.sol";
+import {MockGroth16Verifier} from "../mocks/MockGroth16Verifier.sol";
+import {IdentityRegistry} from "../src/IdentityRegistry.sol";
 import {KYCGatedAuction} from "../src/KYCGatedAuction.sol";
 
 contract IntegrationTest is Test {
@@ -15,6 +16,7 @@ contract IntegrationTest is Test {
     CredentialMetadataRegistry private metadataRegistry;
     MockGroth16Verifier private groth16Verifier;
     CredentialVerifier private verifierWrapper;
+    IdentityRegistry private identityRegistry;
     KYCGatedAuction private auction;
 
     address private constant ISSUER = address(0xA11CE);
@@ -26,9 +28,7 @@ contract IntegrationTest is Test {
 
     bytes private issuerPublicKey;
 
-    /*//////////////////////////////////////////////////////////////
-                            SETUP
-    //////////////////////////////////////////////////////////////*/
+
 
     function setUp() public {
         issuerPublicKey = hex"04aabbccddeeff";
@@ -45,7 +45,8 @@ contract IntegrationTest is Test {
             address(groth16Verifier)
         );
 
-        auction = new KYCGatedAuction(address(verifierWrapper));
+        identityRegistry = new IdentityRegistry(address(this));
+        auction = new KYCGatedAuction(address(identityRegistry), address(this));
 
         // Fund users
         vm.deal(USER, 10 ether);
@@ -60,9 +61,6 @@ contract IntegrationTest is Test {
         metadataRegistry.registerCredential(CREDENTIAL_ID, ISSUER_DID, 77);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        CORE COMPOSABILITY TESTS
-    //////////////////////////////////////////////////////////////*/
 
     function testUnverifiedUserCannotBid() public {
         vm.prank(USER);
@@ -98,9 +96,7 @@ contract IntegrationTest is Test {
     function testRevokedUserCannotBid() public {
         _verifyUser();
 
-        // revoke credential
-        vm.prank(ISSUER);
-        revocationRegistry.revoke(77);
+        identityRegistry.revokeIdentity(USER);
 
         vm.prank(USER);
         vm.expectRevert("KYC required");
@@ -108,9 +104,6 @@ contract IntegrationTest is Test {
         auction.placeBid{value: 1 ether}();
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        EDGE CASES
-    //////////////////////////////////////////////////////////////*/
 
     function testBidMustBeHigherThanPrevious() public {
         _verifyUser();
@@ -120,7 +113,7 @@ contract IntegrationTest is Test {
 
         vm.prank(USER);
         vm.expectRevert(); // adjust message if needed
-        auction.placeBid{value: 1 ether};
+        auction.placeBid{value: 1 ether}();
     }
 
     function testZeroBidReverts() public {
@@ -131,9 +124,7 @@ contract IntegrationTest is Test {
         auction.placeBid{value: 0}();
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        MULTI USER FLOW
-    //////////////////////////////////////////////////////////////*/
+
 
     function testMultipleUsersBiddingFlow() public {
         _verifyUser();
@@ -152,9 +143,7 @@ contract IntegrationTest is Test {
         assertEq(auction.highestBid(), 5 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        FUZZ (coverage boost)
-    //////////////////////////////////////////////////////////////*/
+
 
     function testFuzz_Bidding(uint256 amount) public {
         vm.assume(amount > 0 && amount < 10 ether);
@@ -167,28 +156,20 @@ contract IntegrationTest is Test {
         assertEq(auction.highestBid(), amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        INTERNAL HELPERS
-    //////////////////////////////////////////////////////////////*/
+
 
     function _verifyUser() internal {
-        CredentialVerifier.Groth16Proof memory proof = _dummyProof();
-
-        uint256[] memory signals = new uint256[](1);
-        signals[0] = 77;
-
         vm.prank(USER);
-        verifierWrapper.verifyPresentationOrRevert(CREDENTIAL_ID, proof, signals);
+        identityRegistry.registerIdentity(keccak256("user-doc"));
+
+        identityRegistry.verifyIdentity(USER);
     }
 
     function _verifyOther() internal {
-        CredentialVerifier.Groth16Proof memory proof = _dummyProof();
-
-        uint256[] memory signals = new uint256[](1);
-        signals[0] = 77;
-
         vm.prank(OTHER);
-        verifierWrapper.verifyPresentationOrRevert(CREDENTIAL_ID, proof, signals);
+        identityRegistry.registerIdentity(keccak256("other-doc"));
+
+        identityRegistry.verifyIdentity(OTHER);
     }
 
     function _dummyProof()

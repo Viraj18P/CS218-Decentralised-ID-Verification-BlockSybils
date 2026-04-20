@@ -2,21 +2,20 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../src/DIDRegistry.sol";
+import "../src/IdentityRegistry.sol";
 
 contract DIDRegistryTest is Test {
-    DIDRegistry registry;
+    IdentityRegistry registry;
+
+    event IdentityRegistered(address indexed user, bytes32 indexed documentHash, uint64 registeredAt);
 
     address user = address(1);
     address anotherUser = address(2);
 
     function setUp() public {
-        registry = new DIDRegistry();
+        registry = new IdentityRegistry(address(this));
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        REGISTER TESTS
-    //////////////////////////////////////////////////////////////*/
 
     function testRegisterIdentityStoresCorrectData() public {
         bytes32 hash = keccak256("user-doc");
@@ -24,10 +23,10 @@ contract DIDRegistryTest is Test {
         vm.prank(user);
         registry.registerIdentity(hash);
 
-        (bytes32 storedHash, uint status, address verifiedBy) = registry.identities(user);
+        (bytes32 storedHash, IdentityRegistry.Status status, address verifiedBy,,,) = registry.getIdentity(user);
 
         assertEq(storedHash, hash);
-        assertEq(status, 1); // Pending (adjust if enum differs)
+        assertEq(uint256(status), 1); // Pending
         assertEq(verifiedBy, address(0));
     }
 
@@ -36,8 +35,8 @@ contract DIDRegistryTest is Test {
 
         vm.prank(user);
 
-        vm.expectEmit(true, false, false, true);
-        emit IdentityRegistered(user, hash); // adjust if event name differs
+        vm.expectEmit(true, true, false, false);
+        emit IdentityRegistered(user, hash, 0);
 
         registry.registerIdentity(hash);
     }
@@ -59,9 +58,7 @@ contract DIDRegistryTest is Test {
         registry.registerIdentity(bytes32(0));
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        VERIFICATION STATUS
-    //////////////////////////////////////////////////////////////*/
+
 
     function testUnregisteredUserNotVerified() public {
         bool verified = registry.isVerified(user);
@@ -76,9 +73,6 @@ contract DIDRegistryTest is Test {
         assertEq(verified, false);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        EDGE CASES
-    //////////////////////////////////////////////////////////////*/
 
     function testDifferentUsersIndependent() public {
         vm.prank(user);
@@ -87,8 +81,8 @@ contract DIDRegistryTest is Test {
         vm.prank(anotherUser);
         registry.registerIdentity(keccak256("doc2"));
 
-        (bytes32 hash1,,) = registry.identities(user);
-        (bytes32 hash2,,) = registry.identities(anotherUser);
+        (bytes32 hash1,,,,,) = registry.getIdentity(user);
+        (bytes32 hash2,,,,,) = registry.getIdentity(anotherUser);
 
         assertTrue(hash1 != hash2);
     }

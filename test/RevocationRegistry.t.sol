@@ -13,34 +13,24 @@ contract RevocationRegistryTest is Test {
     uint256 private constant INDEX = 77;
     uint256 private constant UNKNOWN_INDEX = 999;
 
-    /*//////////////////////////////////////////////////////////////
-                            SETUP
-    //////////////////////////////////////////////////////////////*/
 
     function setUp() public {
         registry = new RevocationRegistry();
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        SUCCESS CASES
-    //////////////////////////////////////////////////////////////*/
 
     function testRevokeMarksCredentialAsRevoked() public {
         vm.prank(ISSUER);
         registry.revoke(INDEX);
 
-        bool revoked = registry.isRevoked(INDEX);
+        bool revoked = registry.isRevoked(ISSUER, INDEX);
         assertTrue(revoked);
     }
 
     function testIsRevokedReturnsFalseInitially() public {
-        bool revoked = registry.isRevoked(INDEX);
+        bool revoked = registry.isRevoked(ISSUER, INDEX);
         assertFalse(revoked);
     }
-
-    /*//////////////////////////////////////////////////////////////
-                        EDGE CASES
-    //////////////////////////////////////////////////////////////*/
 
     function testRevokeMultipleIndexes() public {
         vm.startPrank(ISSUER);
@@ -51,59 +41,52 @@ contract RevocationRegistryTest is Test {
 
         vm.stopPrank();
 
-        assertTrue(registry.isRevoked(1));
-        assertTrue(registry.isRevoked(2));
-        assertTrue(registry.isRevoked(3));
+        assertTrue(registry.isRevoked(ISSUER, 1));
+        assertTrue(registry.isRevoked(ISSUER, 2));
+        assertTrue(registry.isRevoked(ISSUER, 3));
     }
 
     function testRevokeSameIndexTwice() public {
         vm.startPrank(ISSUER);
 
         registry.revoke(INDEX);
-        registry.revoke(INDEX); // should not break
+        vm.expectRevert(abi.encodeWithSelector(RevocationRegistry.AlreadyRevoked.selector, ISSUER, INDEX));
+        registry.revoke(INDEX);
 
         vm.stopPrank();
 
-        assertTrue(registry.isRevoked(INDEX));
+        assertTrue(registry.isRevoked(ISSUER, INDEX));
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        SECURITY / FAILURE
-    //////////////////////////////////////////////////////////////*/
 
     function testUnauthorizedUserCanRevokeOrNot() public {
-        // ⚠️ depends on your contract design:
-        // If only issuer/admin can revoke → expectRevert
-        // If open revocation → should pass
+        // depends on your contract design:
+        // If only issuer/admin can revoke, expectRevert
+        // If open revocation, should pass
 
         vm.prank(ATTACKER);
 
-        // Uncomment ONE based on actual contract:
+        
 
         // vm.expectRevert();
         registry.revoke(INDEX);
 
-        bool revoked = registry.isRevoked(INDEX);
+        bool revoked = registry.isRevoked(ATTACKER, INDEX);
         assertTrue(revoked);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        UNKNOWN / DEFAULT
-    //////////////////////////////////////////////////////////////*/
+
 
     function testUnknownIndexNotRevoked() public {
-        bool revoked = registry.isRevoked(UNKNOWN_INDEX);
+        bool revoked = registry.isRevoked(ISSUER, UNKNOWN_INDEX);
         assertFalse(revoked);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        FUZZ TEST (coverage boost)
-    //////////////////////////////////////////////////////////////*/
 
     function testFuzz_Revoke(uint256 x) public {
         vm.prank(ISSUER);
         registry.revoke(x);
 
-        assertTrue(registry.isRevoked(x));
+        assertTrue(registry.isRevoked(ISSUER, x));
     }
 }
