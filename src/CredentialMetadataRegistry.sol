@@ -8,7 +8,6 @@ contract CredentialMetadataRegistry {
         string issuerDID;
         address issuer;
         uint256 revocationIndex;
-        bool exists;
     }
 
     error ZeroAddress();
