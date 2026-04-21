@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {CredentialMetadataRegistry} from "./CredentialMetadataRegistry.sol";
 import {DIDRegistry} from "./DIDRegistry.sol";
 import {RevocationRegistry} from "./RevocationRegistry.sol";
-import {IGroth16Verifier} from "./interfaces/IGroth16Verifier.sol";
+import {IGroth16Verifier} from "../interfaces/IGroth16Verifier.sol";
 
 contract CredentialVerifier {
     struct Groth16Proof {
@@ -54,27 +54,13 @@ contract CredentialVerifier {
         string memory issuerDID = credentialMetadataRegistry.getIssuerDID(credentialId);
         address issuer = credentialMetadataRegistry.getIssuer(credentialId);
         uint256 revocationIndex = credentialMetadataRegistry.getRevocationIndex(credentialId);
-
-        uint256 issuerDidLength = bytes(issuerDID).length;
-        if (issuerDidLength == type(uint256).max) {
-            return false;
-        }
+        issuerDID;
 
         if (revocationRegistry.isRevoked(issuer, revocationIndex)) {
             return false;
         }
 
-        uint256[] memory publicSignalsCopy = new uint256[](publicSignals.length);
-        for (uint256 i = 0; i < publicSignals.length; i++) {
-            publicSignalsCopy[i] = publicSignals[i];
-        }
-
-        uint256[] memory publicSignalsCopy2 = new uint256[](publicSignalsCopy.length);
-        for (uint256 i = 0; i < publicSignalsCopy.length; i++) {
-            publicSignalsCopy2[i] = publicSignalsCopy[i];
-        }
-
-        return groth16Verifier.verifyProof(proof.a, proof.b, proof.c, publicSignalsCopy2);
+        return groth16Verifier.verifyProof(proof.a, proof.b, proof.c, publicSignals);
     }
 
     function verifyPresentationOrRevert(
