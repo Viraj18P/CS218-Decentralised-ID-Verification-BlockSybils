@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# zk_setup.sh — Full Groth16 trusted setup pipeline for BlockSybils ZK circuits.
+#
+# Run from the project root:
+#   bash scripts/zk_setup.sh
+#
+# What it does for each circuit:
+#   1. Compile .circom -> .r1cs + .wasm + .sym
+#   2. Powers of Tau ceremony (deterministic contribution for dev; replace with
+#      a real ceremony or downloaded ptau for production)
+#   3. Phase 2 circuit-specific setup + key contribution
+#   4. Export circuit_final.zkey and verification_key.json
+#   5. Export Solidity verifier to contracts/verifiers/ (overwrites placeholder)
+#
+# Prerequisites:
+#   circom >= 2.0.0   — https://docs.circom.io/getting-started/installation/
+#   snarkjs >= 0.7    — npm install -g snarkjs
+#   node >= 18
+
+set -euo pipefail
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+log()  { echo "[zk_setup] $*"; }
+die()  { echo "[zk_setup] ERROR: $*" >&2; exit 1; }
+
+command -v circom   >/dev/null 2>&1 || die "circom not found. Install: https://docs.circom.io/getting-started/installation/"
+command -v snarkjs  >/dev/null 2>&1 || die "snarkjs not found. Install: npm install -g snarkjs"
+command -v node     >/dev/null 2>&1 || die "node not found."
+
+# ─── Config ───────────────────────────────────────────────────────────────────
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CIRCUITS_DIR="$PROJECT_ROOT/circuits"
+BUILD_DIR="$PROJECT_ROOT/build"
+VERIFIERS_DIR="$PROJECT_ROOT/contracts/verifiers"
+
+# Powers of Tau size.
+# pot14 = 2^14 = 16,384 constraints — sufficient for all individual circuits.
+# pot15 = 2^15 = 32,768 constraints — used for CompositeProof (~7,000 constraints, pot15 for headroom).
+POT_SIZE_STANDARD=14
+POT_SIZE_COMPOSITE=15
+POT_DIR="$BUILD_DIR/ptau"
+
+mkdir -p "$POT_DIR" "$VERIFIERS_DIR"
+
+# ─── Powers of Tau (shared across all circuits of the same size) ───────────────
+
+setup_ptau() {
+    local size="$1"
+    local ptau="$POT_DIR/pot${size}_final.ptau"
+    if [[ -f "$ptau" ]]; then
+        log "pot${size}_final.ptau already exists, skipping Powers of Tau."
+        return
+    fi
+    log "Generating Powers of Tau (2^${size})..."
+    snarkjs powersoftau new bn128 "$size" "$POT_DIR/pot${size}_0000.ptau" -v
+    # Single deterministic contribution — replace with real ceremony entropy for production.
+    snarkjs powersoftau contribute \
+        "$POT_DIR/pot${size}_0000.ptau" \
+        "$POT_DIR/pot${size}_0001.ptau" \
+        --name="BlockSybils-dev" \
+        -e="$(date +%s%N)-dev-entropy"
+    snarkjs powersoftau prepare phase2 \
+        "$POT_DIR/pot${size}_0001.ptau" \
+        "$ptau" -v
+    log "pot${size}_final.ptau ready."
+}
+
+setup_ptau "$POT_SIZE_STANDARD"
+setup_ptau "$POT_SIZE_COMPOSITE"
+
+# ─── Per-circuit setup ─────────────────────────────────────────────────────────
+
+setup_circuit() {
+    local circuit_name="$1"       # e.g. AgeVerifier
+    local circom_file="$2"        # relative path under circuits/
+    local verifier_contract="$3"  # output .sol filename in contracts/verifiers/
+    local pot_size="$4"           # 14 or 15
+
+    local circuit_dir="$BUILD_DIR/$circuit_name"
+    local ptau="$POT_DIR/pot${pot_size}_final.ptau"
+
+    log "──────────────────────────────────────────"
+    log "Circuit: $circuit_name"
+    mkdir -p "$circuit_dir"
+
+    # 1. Compile
+    log "  Compiling $circom_file..."
+    circom "$CIRCUITS_DIR/$circom_file" \
+        --r1cs --wasm --sym \
+        --output "$circuit_dir" \
+        --include "$PROJECT_ROOT/node_modules"
+
+    # 2. Phase 2 setup
+    log "  Phase 2 setup..."
+    snarkjs groth16 setup \
+        "$circuit_dir/${circuit_name}.r1cs" \
+        "$ptau" \
+        "$circuit_dir/${circuit_name}_0000.zkey"
+
+    # 3. Contribute to phase 2 (deterministic dev contribution)
+    log "  Phase 2 contribution..."
+    snarkjs zkey contribute \
+        "$circuit_dir/${circuit_name}_0000.zkey" \
+        "$circuit_dir/${circuit_name}_final.zkey" \
+        --name="BlockSybils-dev" \
+        -e="$(date +%s%N)-${circuit_name}-entropy"
+
+    # 4. Export verification key
+    log "  Exporting verification_key.json..."
+    snarkjs zkey export verificationkey \
+        "$circuit_dir/${circuit_name}_final.zkey" \
+        "$circuit_dir/verification_key.json"
+
+    # 5. Export Solidity verifier (overwrites placeholder in contracts/verifiers/)
+    log "  Exporting Solidity verifier -> contracts/verifiers/${verifier_contract}..."
+    snarkjs zkey export solidityverifier \
+        "$circuit_dir/${circuit_name}_final.zkey" \
+        "$VERIFIERS_DIR/${verifier_contract}"
+
+    # Patch the generated verifier to implement IGroth16Verifier.
+    # snarkjs generates a standalone contract; we wrap the verifyProof function
+    # so it matches the IGroth16Verifier interface expected by ZKGateway.
+    # The generated function signature already matches — just prepend the import.
+    local tmp="$circuit_dir/tmp_patch.sol"
+    {
+        echo "// Auto-generated by snarkjs + patched by zk_setup.sh"
+        echo "// SPDX-License-Identifier: GPL-3.0"
+        grep -v "^// SPDX" "$VERIFIERS_DIR/${verifier_contract}" | \
+        sed "1s|pragma solidity|import {IGroth16Verifier} from \"../../interfaces/IGroth16Verifier.sol\";\npragma solidity|"
+    } > "$tmp"
+    mv "$tmp" "$VERIFIERS_DIR/${verifier_contract}"
+
+    log "  Done: $circuit_name"
+}
+
+# Individual circuits use pot14; CompositeProof uses pot15 for headroom.
+setup_circuit "AgeVerifier"            "AgeVerifier.circom"            "AgeVerifier.sol"            "$POT_SIZE_STANDARD"
+setup_circuit "CredentialValid"        "CredentialValid.circom"        "CredentialValidVerifier.sol" "$POT_SIZE_STANDARD"
+setup_circuit "NullifierMerkle"        "NullifierMerkle.circom"        "NullifierMerkleVerifier.sol" "$POT_SIZE_STANDARD"
+setup_circuit "CompositeProof"         "CompositeProof.circom"         "CompositeProofVerifier.sol"  "$POT_SIZE_COMPOSITE"
+
+log "══════════════════════════════════════════"
+log "ZK setup complete."
+log "Artifacts:  build/<circuit>/"
+log "Verifiers:  contracts/verifiers/"
+log "Next step:  forge build && forge test --match-path 'test/zk/*'"
+log "══════════════════════════════════════════"

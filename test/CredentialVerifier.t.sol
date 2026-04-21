@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {CredentialMetadataRegistry} from "../src/CredentialMetadataRegistry.sol";
 import {CredentialVerifier} from "../src/CredentialVerifier.sol";
 import {DIDRegistry} from "../src/DIDRegistry.sol";
-import {MockGroth16Verifier} from "../src/mocks/MockGroth16Verifier.sol";
+import {MockGroth16Verifier} from "../mocks/MockGroth16Verifier.sol";
 import {RevocationRegistry} from "../src/RevocationRegistry.sol";
 
 contract CredentialVerifierTest is Test {

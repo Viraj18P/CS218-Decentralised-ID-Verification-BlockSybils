@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {CredentialMetadataRegistry} from "./CredentialMetadataRegistry.sol";
 import {DIDRegistry} from "./DIDRegistry.sol";
 import {RevocationRegistry} from "./RevocationRegistry.sol";
-import {IGroth16Verifier} from "./interfaces/IGroth16Verifier.sol";
+import {IGroth16Verifier} from "../interfaces/IGroth16Verifier.sol";
 
 contract CredentialVerifier {
     struct Groth16Proof {
