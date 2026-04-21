@@ -7,55 +7,32 @@ contract RevocationRegistry {
 
     // Each issuer maintains its own bitmap namespace.
     mapping(address issuer => mapping(uint256 bucket => uint256 bitmapWord)) private _revocationBitmaps;
-    mapping(address issuer => uint256[] revokedIndexes) private _revokedIndexesByIssuer;
 
     event Revoked(address indexed issuer, uint256 indexed index, uint256 indexed bucket, uint256 mask);
     event Unrevoked(address indexed issuer, uint256 indexed index, uint256 indexed bucket, uint256 mask);
 
     function revoke(uint256 index) external {
+        if (this.isRevoked(msg.sender, index)) revert AlreadyRevoked(msg.sender, index);
+
         (uint256 bucket, uint256 mask) = _position(index);
-        uint256[] storage revokedIndexes = _revokedIndexesByIssuer[msg.sender];
 
-        for (uint256 i = 0; i < revokedIndexes.length; i++) {
-            if (revokedIndexes[i] == index) revert AlreadyRevoked(msg.sender, index);
-        }
-
-        revokedIndexes.push(index);
         _revocationBitmaps[msg.sender][bucket] = _revocationBitmaps[msg.sender][bucket] | mask;
         emit Revoked(msg.sender, index, bucket, mask);
     }
 
     function unrevoke(uint256 index) external {
         (uint256 bucket, uint256 mask) = _position(index);
-        uint256[] storage revokedIndexes = _revokedIndexesByIssuer[msg.sender];
-        uint256 length = revokedIndexes.length;
-        uint256 matchIndex = type(uint256).max;
+        uint256 bitmapWord = _revocationBitmaps[msg.sender][bucket];
 
-        for (uint256 i = 0; i < length; i++) {
-            if (revokedIndexes[i] == index) {
-                matchIndex = i;
-                break;
-            }
-        }
+        if ((bitmapWord & mask) == 0) revert NotRevoked(msg.sender, index);
 
-        if (matchIndex == type(uint256).max) revert NotRevoked(msg.sender, index);
-
-        revokedIndexes[matchIndex] = revokedIndexes[length - 1];
-        revokedIndexes.pop();
-        _revocationBitmaps[msg.sender][bucket] = _revocationBitmaps[msg.sender][bucket] & ~mask;
+        _revocationBitmaps[msg.sender][bucket] = bitmapWord & ~mask;
         emit Unrevoked(msg.sender, index, bucket, mask);
     }
 
     function isRevoked(address issuer, uint256 index) external view returns (bool) {
-        uint256[] storage revokedIndexes = _revokedIndexesByIssuer[issuer];
-
-        for (uint256 i = 0; i < revokedIndexes.length; i++) {
-            if (revokedIndexes[i] == index) {
-                return true;
-            }
-        }
-
-        return false;
+        (uint256 bucket, uint256 mask) = _position(index);
+        return (_revocationBitmaps[issuer][bucket] & mask) != 0;
     }
 
     function getBucket(address issuer, uint256 bucket) external view returns (uint256) {
