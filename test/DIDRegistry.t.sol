@@ -1,76 +1,89 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {DIDRegistry} from "../src/DIDRegistry.sol";
+import "forge-std/Test.sol";
+import "../src/IdentityRegistry.sol";
 
 contract DIDRegistryTest is Test {
-    DIDRegistry private registry;
+    IdentityRegistry registry;
 
-    address private constant ISSUER = address(0xA11CE);
-    address private constant ATTACKER = address(0xB0B);
-    string private constant ISSUER_DID = "did:example:issuer-1";
+    event IdentityRegistered(address indexed user, bytes32 indexed documentHash, uint64 registeredAt);
 
-    bytes private issuerKey;
-    bytes private updatedKey;
+    address user = address(1);
+    address anotherUser = address(2);
 
     function setUp() public {
-        registry = new DIDRegistry();
-        issuerKey = hex"1122334455667788";
-        updatedKey = hex"aabbccdd";
+        registry = new IdentityRegistry(address(this));
     }
 
-    function testRegisterDidStoresDocument() public {
-        vm.prank(ISSUER);
-        registry.registerDid(ISSUER_DID, issuerKey);
 
-        (address owner, bytes memory publicKey, uint256 updatedTimestamp) = registry.getDocument(ISSUER_DID);
-        assertEq(owner, ISSUER);
-        assertEq(publicKey, issuerKey);
-        assertTrue(updatedTimestamp > 0);
+    function testRegisterIdentityStoresCorrectData() public {
+        bytes32 hash = keccak256("user-doc");
+
+        vm.prank(user);
+        registry.registerIdentity(hash);
+
+        (bytes32 storedHash, IdentityRegistry.Status status, address verifiedBy,,,) = registry.getIdentity(user);
+
+        assertEq(storedHash, hash);
+        assertEq(uint256(status), 1); // Pending
+        assertEq(verifiedBy, address(0));
     }
 
-    function testOnlyOwnerCanUpdatePublicKey() public {
-        vm.prank(ISSUER);
-        registry.registerDid(ISSUER_DID, issuerKey);
+    function testRegisterIdentityEmitsEvent() public {
+        bytes32 hash = keccak256("doc");
 
-        vm.prank(ATTACKER);
-        vm.expectRevert(abi.encodeWithSelector(DIDRegistry.Unauthorized.selector));
-        registry.updatePublicKey(ISSUER_DID, updatedKey);
+        vm.prank(user);
+
+        vm.expectEmit(true, true, false, false);
+        emit IdentityRegistered(user, hash, 0);
+
+        registry.registerIdentity(hash);
     }
 
-    function testUpdatePublicKey() public {
-        vm.prank(ISSUER);
-        registry.registerDid(ISSUER_DID, issuerKey);
-        uint256 registeredAt = registry.getUpdatedTimestamp(ISSUER_DID);
+    function testCannotRegisterTwice() public {
+        bytes32 hash = keccak256("doc");
 
-        vm.prank(ISSUER);
-        registry.updatePublicKey(ISSUER_DID, updatedKey);
+        vm.startPrank(user);
+        registry.registerIdentity(hash);
 
-        assertEq(registry.getPublicKey(ISSUER_DID), updatedKey);
-        assertTrue(registry.getUpdatedTimestamp(ISSUER_DID) >= registeredAt);
+        vm.expectRevert();
+        registry.registerIdentity(hash);
+        vm.stopPrank();
     }
 
-    function testCannotOverwriteExistingDID() public {
-        vm.prank(ISSUER);
-        registry.registerDid(ISSUER_DID, issuerKey);
-
-        vm.prank(ISSUER);
-        vm.expectRevert(
-            abi.encodeWithSelector(DIDRegistry.DIDAlreadyRegistered.selector, keccak256(bytes(ISSUER_DID)))
-        );
-        registry.registerDid(ISSUER_DID, issuerKey);
+    function testRegisterWithZeroHashReverts() public {
+        vm.prank(user);
+        vm.expectRevert();
+        registry.registerIdentity(bytes32(0));
     }
 
-    function testCannotRegisterEmptyDid() public {
-        vm.prank(ISSUER);
-        vm.expectRevert(abi.encodeWithSelector(DIDRegistry.EmptyDID.selector));
-        registry.registerDid("", issuerKey);
+
+
+    function testUnregisteredUserNotVerified() public {
+        bool verified = registry.isVerified(user);
+        assertEq(verified, false);
     }
 
-    function testCannotRegisterEmptyPublicKey() public {
-        vm.prank(ISSUER);
-        vm.expectRevert(abi.encodeWithSelector(DIDRegistry.EmptyPublicKey.selector));
-        registry.registerDid(ISSUER_DID, bytes(""));
+    function testRegisteredUserNotVerifiedInitially() public {
+        vm.prank(user);
+        registry.registerIdentity(keccak256("doc"));
+
+        bool verified = registry.isVerified(user);
+        assertEq(verified, false);
+    }
+
+
+    function testDifferentUsersIndependent() public {
+        vm.prank(user);
+        registry.registerIdentity(keccak256("doc1"));
+
+        vm.prank(anotherUser);
+        registry.registerIdentity(keccak256("doc2"));
+
+        (bytes32 hash1,,,,,) = registry.getIdentity(user);
+        (bytes32 hash2,,,,,) = registry.getIdentity(anotherUser);
+
+        assertTrue(hash1 != hash2);
     }
 }

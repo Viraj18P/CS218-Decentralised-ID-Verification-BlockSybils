@@ -8,7 +8,6 @@ contract CredentialMetadataRegistry {
         string issuerDID;
         address issuer;
         uint256 revocationIndex;
-        bool exists;
     }
 
     error ZeroAddress();
@@ -37,7 +36,7 @@ contract CredentialMetadataRegistry {
         if (credentialId == bytes32(0)) revert InvalidCredentialId();
 
         CredentialRecord storage record = _credentials[credentialId];
-        if (record.exists) revert CredentialAlreadyRegistered(credentialId);
+        if (record.issuer != address(0)) revert CredentialAlreadyRegistered(credentialId);
 
         address didOwner = didRegistry.getOwner(issuerDID);
         if (didOwner != msg.sender) revert CallerNotDidOwner(msg.sender, didOwner);
@@ -45,8 +44,7 @@ contract CredentialMetadataRegistry {
         record.issuerDID = issuerDID;
         record.issuer = didOwner;
         record.revocationIndex = revocationIndex;
-        record.exists = true;
-
+        
         emit CredentialRegistered(credentialId, issuerDID, didOwner, revocationIndex);
     }
 

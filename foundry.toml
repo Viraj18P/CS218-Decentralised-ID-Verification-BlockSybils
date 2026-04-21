@@ -1,14 +1,16 @@
 [profile.default]
-src      = "src"
-test     = "test"
-out      = "out"
-libs     = ["lib"]
-solc     = "0.8.24"
+src = "src"
+test = "test"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.24"
 
-# contracts/ is compiled on-demand when imported by test files.
-# No separate source root needed — Forge resolves imports transitively.
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/"
+]
 
 [profile.default.fmt]
-line_length    = 120
-tab_width      = 4
+line_length = 120
+tab_width = 4
 bracket_spacing = true
