@@ -54,7 +54,7 @@ contract CredentialMetadataRegistry {
         returns (string memory issuerDID, address issuer, uint256 revocationIndex)
     {
         CredentialRecord storage record = _credentials[credentialId];
-        if (!record.exists) revert CredentialNotFound(credentialId);
+        if (record.issuer == address(0)) revert CredentialNotFound(credentialId);
 
         return (record.issuerDID, record.issuer, record.revocationIndex);
     }
@@ -75,6 +75,6 @@ contract CredentialMetadataRegistry {
     }
 
     function exists(bytes32 credentialId) external view returns (bool) {
-        return _credentials[credentialId].exists;
+        return _credentials[credentialId].issuer != address(0);
     }
 }
