@@ -5,12 +5,19 @@ out = "out"
 libs = ["lib"]
 solc_version = "0.8.24"
 
+# Include ZK contracts and mocks so they appear in coverage + gas reports
+extra_output = ["storageLayout", "evm.assembly"]
+
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-    "forge-std/=lib/forge-std/src/"
+    "forge-std/=lib/forge-std/src/",
+    "contracts/=contracts/"
 ]
 
 [profile.default.fmt]
 line_length = 120
 tab_width = 4
 bracket_spacing = true
+
+[fuzz]
+runs = 256

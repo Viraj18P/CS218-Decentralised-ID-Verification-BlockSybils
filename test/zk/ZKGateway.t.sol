@@ -168,6 +168,14 @@ contract ZKGatewayTest is Test {
         gateway.verifyCompositeProof(CREDENTIAL_ID, _proof(), signals);
     }
 
+    function testCompositeProofReturnsFalseWhenVerifierRejects() public {
+        compositeVerifier.setShouldVerify(false);
+        uint256[] memory signals = _compositeSignals(CREDENTIAL_ID, MERKLE_ROOT, NULLIFIER, EXT_NULLIFIER);
+        assertFalse(gateway.verifyCompositeProof(CREDENTIAL_ID, _proof(), signals));
+        // Nullifier must NOT be consumed when proof fails
+        assertFalse(gateway.isNullifierUsed(NULLIFIER));
+    }
+
     // =========================================================================
     // Merkle root admin
     // =========================================================================

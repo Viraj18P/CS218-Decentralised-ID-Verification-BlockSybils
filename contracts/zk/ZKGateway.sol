@@ -178,6 +178,7 @@ contract ZKGateway is IZKVerification {
         bool ok = compositeProofVerifier.verifyProof(proof.a, proof.b, proof.c, publicSignals);
         if (ok) {
             _usedNullifiers[nullifierHash] = true;
+            emit NullifierConsumed(nullifierHash, extNullifier);
             emit CompositeProofVerified(msg.sender, credentialId, nullifierHash);
         }
         return ok;
