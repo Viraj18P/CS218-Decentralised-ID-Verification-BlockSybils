@@ -34,15 +34,14 @@ contract DIDRegistry {
             if (_registeredDidHashes[i] == didHash) revert DIDAlreadyRegistered(didHash);
         }
 
-        bytes memory publicKeyCopy = pubKey;
         DidDocument storage document = _documents[didHash];
 
         document.owner = msg.sender;
-        document.publicKey = publicKeyCopy;
+        document.publicKey = pubKey;
         document.updatedTimestamp = block.timestamp;
         _registeredDidHashes.push(didHash);
 
-        emit DIDRegistered(didHash, did, msg.sender, publicKeyCopy, block.timestamp);
+        emit DIDRegistered(didHash, did, msg.sender, pubKey, block.timestamp);
     }
 
     function updatePublicKey(string calldata did, bytes calldata newKey) external {
