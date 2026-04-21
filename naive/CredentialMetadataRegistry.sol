@@ -20,7 +20,6 @@ contract CredentialMetadataRegistry {
     DIDRegistry public immutable didRegistry;
 
     mapping(bytes32 => CredentialRecord) private _credentials;
-    bytes32[] private _credentialIds;
 
     event CredentialRegistered(
         bytes32 indexed credentialId,
@@ -37,23 +36,18 @@ contract CredentialMetadataRegistry {
     function registerCredential(bytes32 credentialId, string calldata issuerDID, uint256 revocationIndex) external {
         if (credentialId == bytes32(0)) revert InvalidCredentialId();
 
-        for (uint256 i = 0; i < _credentialIds.length; i++) {
-            if (_credentialIds[i] == credentialId) revert CredentialAlreadyRegistered(credentialId);
-        }
+        CredentialRecord storage record = _credentials[credentialId];
+        if (record.exists) revert CredentialAlreadyRegistered(credentialId);
 
         address didOwner = didRegistry.getOwner(issuerDID);
         if (didOwner != msg.sender) revert CallerNotDidOwner(msg.sender, didOwner);
 
-        string memory issuerDidCopy = issuerDID;
-        CredentialRecord storage record = _credentials[credentialId];
-
-        record.issuerDID = issuerDidCopy;
-        record.issuer = didRegistry.getOwner(issuerDID);
+        record.issuerDID = issuerDID;
+        record.issuer = didOwner;
         record.revocationIndex = revocationIndex;
         record.exists = true;
-        _credentialIds.push(credentialId);
 
-        emit CredentialRegistered(credentialId, issuerDidCopy, didOwner, revocationIndex);
+        emit CredentialRegistered(credentialId, issuerDID, didOwner, revocationIndex);
     }
 
     function getCredential(bytes32 credentialId)
@@ -62,9 +56,16 @@ contract CredentialMetadataRegistry {
         returns (string memory issuerDID, address issuer, uint256 revocationIndex)
     {
         CredentialRecord storage record = _credentials[credentialId];
-        if (!record.exists) revert CredentialNotFound(credentialId);
+        if (record.issuer == address(0)) revert CredentialNotFound(credentialId);
 
         return (record.issuerDID, record.issuer, record.revocationIndex);
+    }
+
+    function getVerificationData(bytes32 credentialId) external view returns (address issuer, uint256 revocationIndex) {
+        CredentialRecord storage record = _credentials[credentialId];
+        issuer = record.issuer;
+        if (issuer == address(0)) revert CredentialNotFound(credentialId);
+        revocationIndex = record.revocationIndex;
     }
 
     function getIssuerDID(bytes32 credentialId) external view returns (string memory) {
@@ -83,6 +84,6 @@ contract CredentialMetadataRegistry {
     }
 
     function exists(bytes32 credentialId) external view returns (bool) {
-        return _credentials[credentialId].exists;
+        return _credentials[credentialId].issuer != address(0);
     }
 }
