@@ -60,7 +60,7 @@ contract DIDRegistryTest is Test {
 
 
 
-    function testUnregisteredUserNotVerified() public {
+    function testUnregisteredUserNotVerified() public view {
         bool verified = registry.isVerified(user);
         assertEq(verified, false);
     }

@@ -98,6 +98,9 @@ contract DIDRegistry {
 
     function _didHashOrRevert(string calldata did) private pure returns (bytes32) {
         if (bytes(did).length == 0) revert EmptyDID();
-        return keccak256(abi.encodePacked(did));
+        bytes memory b = bytes(did);
+        bytes32 h;
+       assembly { h := keccak256(add(b, 32), mload(b)) }
+       return h;
     }
 }

@@ -6,26 +6,23 @@ export default function Navbar({ currentTab, onTabChange, isConnected, walletAdd
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10)
-    }
-
+    const handleScroll = () => setIsScrolled(window.scrollY > 10)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
   const navItems = [
-    { id: 'connect', label: 'Connect' },
-    { id: 'register', label: 'Register' },
-    { id: 'verify', label: 'Verify' },
-    { id: 'lookup', label: 'Lookup' },
-    { id: 'auction', label: 'Auction' },
-    { id: 'admin', label: 'Admin' },
+    { id: 'connect',      label: 'Connect' },
+    { id: 'register',     label: 'Register' },
+    { id: 'verify',       label: 'Verify' },
+    { id: 'lookup',       label: 'Lookup' },
+    { id: 'zk',           label: 'ZK Proof' },
+    { id: 'auction',      label: 'Auction' },
+    { id: 'admin',        label: 'Admin' },   // ← new tab
   ]
 
-  const truncateAddress = (addr) => {
-    return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : 'Connect Wallet'
-  }
+  const truncateAddress = (addr) =>
+    addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : 'Connect Wallet'
 
   return (
     <motion.nav
@@ -35,7 +32,6 @@ export default function Navbar({ currentTab, onTabChange, isConnected, walletAdd
       transition={{ duration: 0.5 }}
     >
       <div className={styles.container}>
-        {/* Logo */}
         <div className={styles.logo}>
           <div className={styles.logoIcon}>🔐</div>
           <span className={styles.logoText}>
@@ -43,13 +39,11 @@ export default function Navbar({ currentTab, onTabChange, isConnected, walletAdd
           </span>
         </div>
 
-        {/* Network Chip */}
         <div className={styles.networkChip}>
           <div className={styles.statusDot} />
           <span>Sepolia Testnet</span>
         </div>
 
-        {/* Navigation Tabs */}
         <div className={styles.navTabs}>
           {navItems.map((item) => (
             <button
@@ -62,7 +56,6 @@ export default function Navbar({ currentTab, onTabChange, isConnected, walletAdd
           ))}
         </div>
 
-        {/* Wallet Button */}
         <motion.button
           className={`${styles.walletBtn} ${isConnected ? styles.connected : ''}`}
           whileHover={{ scale: 1.05 }}
@@ -70,7 +63,7 @@ export default function Navbar({ currentTab, onTabChange, isConnected, walletAdd
         >
           <div className={styles.walletDot} style={{
             background: isConnected ? 'var(--accent-primary)' : 'var(--text-tertiary)',
-            boxShadow: isConnected ? 'var(--glow-green)' : 'none'
+            boxShadow: isConnected ? 'var(--glow-green)' : 'none',
           }} />
           <span>{truncateAddress(walletAddress)}</span>
         </motion.button>

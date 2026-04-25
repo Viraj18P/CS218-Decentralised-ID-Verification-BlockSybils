@@ -1,23 +1,53 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IGroth16Verifier} from "../../interfaces/IGroth16Verifier.sol";
 import {IZKVerification} from "./IZKVerification.sol";
 
-// Standalone ZK orchestrator. Teammates call this contract instead of individual verifiers.
-// Responsibilities:
-//   - Route proofs to the correct circuit verifier.
-//   - Enforce per-circuit public signal count.
-//   - Cross-check on-chain identifiers (credentialId) against proof public signals.
-//   - Maintain nullifier registry (consumed → true) to prevent Sybil reuse.
-//   - Maintain whitelist of valid Merkle roots (managed by merkleAdmin).
-//
-// Deploy by passing four verifier addresses (from contracts/verifiers/) and an admin.
-// After zk_setup.sh, replace placeholder verifiers with real snarkjs-generated ones.
+// ── snarkjs-generated verifier interfaces ────────────────────────────────────
+// snarkjs ALWAYS generates fixed-size arrays, not dynamic uint256[].
+// Using the wrong signature causes a selector mismatch → CALL_EXCEPTION.
+
+interface IVerifier3 {
+    /// @dev selector: 0x82d074f1 — matches AgeVerifier + NullifierMerkleVerifier
+    function verifyProof(
+        uint256[2] calldata _pA,
+        uint256[2][2] calldata _pB,
+        uint256[2] calldata _pC,
+        uint256[3] calldata _pubSignals
+    ) external view returns (bool);
+}
+
+interface IVerifier4 {
+    /// @dev selector: 0xb43c87f2 — matches CredentialValidVerifier
+    function verifyProof(
+        uint256[2] calldata _pA,
+        uint256[2][2] calldata _pB,
+        uint256[2] calldata _pC,
+        uint256[4] calldata _pubSignals
+    ) external view returns (bool);
+}
+
+interface IVerifier10 {
+    /// @dev selector matches CompositeProofVerifier (10 public signals)
+    function verifyProof(
+        uint256[2] calldata _pA,
+        uint256[2][2] calldata _pB,
+        uint256[2] calldata _pC,
+        uint256[10] calldata _pubSignals
+    ) external view returns (bool);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @title  ZKGateway
+/// @notice Standalone ZK orchestrator. Routes proofs to the correct snarkjs-generated
+///         Groth16 verifier, enforces signal counts, tracks nullifiers, and manages
+///         Merkle root whitelist.
+/// @dev    Each verifier is called with its EXACT fixed-array signature as generated
+///         by `snarkjs zkey export solidityverifier`. Using dynamic uint256[] arrays
+///         would produce a different ABI selector and cause CALL_EXCEPTION.
 contract ZKGateway is IZKVerification {
-    // -----------------------------------------------------------------------
-    // Errors
-    // -----------------------------------------------------------------------
+
+    // ── Errors ────────────────────────────────────────────────────────────────
     error ZeroAddress();
     error Unauthorized();
     error NullifierAlreadyUsed(bytes32 nullifierHash);
@@ -25,9 +55,7 @@ contract ZKGateway is IZKVerification {
     error WrongSignalCount(uint256 got, uint256 expected);
     error CredentialIdMismatch(bytes32 expected, bytes32 inProof);
 
-    // -----------------------------------------------------------------------
-    // Events
-    // -----------------------------------------------------------------------
+    // ── Events ────────────────────────────────────────────────────────────────
     event AgeProofVerified(address indexed subject, uint256 currentDays, bytes32 commitment);
     event CredentialProofVerified(address indexed subject, bytes32 indexed credentialId);
     event NullifierConsumed(bytes32 indexed nullifierHash, bytes32 indexed externalNullifier);
@@ -36,31 +64,25 @@ contract ZKGateway is IZKVerification {
     );
     event MerkleRootAdded(bytes32 indexed root, address indexed addedBy);
 
-    // -----------------------------------------------------------------------
-    // State
-    // -----------------------------------------------------------------------
-    IGroth16Verifier public immutable ageVerifier;
-    IGroth16Verifier public immutable credentialValidVerifier;
-    IGroth16Verifier public immutable nullifierMerkleVerifier;
-    IGroth16Verifier public immutable compositeProofVerifier;
+    // ── Immutable verifier addresses ──────────────────────────────────────────
+    IVerifier3  public immutable ageVerifier;             // 3 signals
+    IVerifier4  public immutable credentialValidVerifier; // 4 signals
+    IVerifier3  public immutable nullifierMerkleVerifier; // 3 signals
+    IVerifier10 public immutable compositeProofVerifier;  // 10 signals
 
     address public immutable merkleAdmin;
 
-    // Consumed nullifiers (nullifierHash => consumed).
+    // ── State ─────────────────────────────────────────────────────────────────
     mapping(bytes32 => bool) private _usedNullifiers;
-
-    // Whitelisted Merkle roots (root => valid).
     mapping(bytes32 => bool) private _validMerkleRoots;
 
-    // Expected public signal counts per circuit.
+    // Signal counts must match the circuits exactly
     uint256 private constant AGE_SIGNAL_COUNT        = 3;
     uint256 private constant CREDENTIAL_SIGNAL_COUNT = 4;
     uint256 private constant NULLIFIER_SIGNAL_COUNT  = 3;
     uint256 private constant COMPOSITE_SIGNAL_COUNT  = 10;
 
-    // -----------------------------------------------------------------------
-    // Constructor
-    // -----------------------------------------------------------------------
+    // ── Constructor ───────────────────────────────────────────────────────────
     constructor(
         address ageVerifier_,
         address credentialValidVerifier_,
@@ -76,17 +98,15 @@ contract ZKGateway is IZKVerification {
                 || merkleAdmin_ == address(0)
         ) revert ZeroAddress();
 
-        ageVerifier              = IGroth16Verifier(ageVerifier_);
-        credentialValidVerifier  = IGroth16Verifier(credentialValidVerifier_);
-        nullifierMerkleVerifier  = IGroth16Verifier(nullifierMerkleVerifier_);
-        compositeProofVerifier   = IGroth16Verifier(compositeProofVerifier_);
-        merkleAdmin              = merkleAdmin_;
+        ageVerifier             = IVerifier3(ageVerifier_);
+        credentialValidVerifier = IVerifier4(credentialValidVerifier_);
+        nullifierMerkleVerifier = IVerifier3(nullifierMerkleVerifier_);
+        compositeProofVerifier  = IVerifier10(compositeProofVerifier_);
+        merkleAdmin             = merkleAdmin_;
     }
 
-    // -----------------------------------------------------------------------
-    // Age proof
+    // ── Age proof (view) ──────────────────────────────────────────────────────
     // publicSignals: [0] current_days  [1] min_age_days  [2] commitment
-    // -----------------------------------------------------------------------
     function verifyAgeProof(
         Groth16Proof calldata proof,
         uint256[] calldata publicSignals
@@ -94,17 +114,14 @@ contract ZKGateway is IZKVerification {
         if (publicSignals.length != AGE_SIGNAL_COUNT) {
             revert WrongSignalCount(publicSignals.length, AGE_SIGNAL_COUNT);
         }
-        bool ok = ageVerifier.verifyProof(proof.a, proof.b, proof.c, publicSignals);
-        // Note: view function — event emission is not possible here. Callers should
-        // emit their own events if they need audit trails for age checks.
-        return ok;
+        // Convert dynamic slice to fixed array — Solidity requires explicit copy
+        uint256[3] memory sigs = [publicSignals[0], publicSignals[1], publicSignals[2]];
+        return ageVerifier.verifyProof(proof.a, proof.b, proof.c, sigs);
     }
 
-    // -----------------------------------------------------------------------
-    // Credential validity proof
+    // ── Credential validity proof (view) ─────────────────────────────────────
     // publicSignals: [0] issuer_pubkey_hash  [1] credential_id_hash
     //                [2] schema_hash         [3] binding_commitment
-    // -----------------------------------------------------------------------
     function verifyCredentialProof(
         bytes32 credentialId,
         Groth16Proof calldata proof,
@@ -113,18 +130,16 @@ contract ZKGateway is IZKVerification {
         if (publicSignals.length != CREDENTIAL_SIGNAL_COUNT) {
             revert WrongSignalCount(publicSignals.length, CREDENTIAL_SIGNAL_COUNT);
         }
-        // Prevent a valid proof for one credential being replayed against another.
         bytes32 proofCredentialId = bytes32(publicSignals[1]);
         if (proofCredentialId != credentialId) {
             revert CredentialIdMismatch(credentialId, proofCredentialId);
         }
-        return credentialValidVerifier.verifyProof(proof.a, proof.b, proof.c, publicSignals);
+        uint256[4] memory sigs = [publicSignals[0], publicSignals[1], publicSignals[2], publicSignals[3]];
+        return credentialValidVerifier.verifyProof(proof.a, proof.b, proof.c, sigs);
     }
 
-    // -----------------------------------------------------------------------
-    // Nullifier + Merkle inclusion (state-changing)
+    // ── Nullifier + Merkle inclusion (state-changing) ─────────────────────────
     // publicSignals: [0] merkle_root  [1] nullifier_hash  [2] external_nullifier
-    // -----------------------------------------------------------------------
     function verifyAndConsumeNullifier(
         Groth16Proof calldata proof,
         uint256[] calldata publicSignals
@@ -140,7 +155,8 @@ contract ZKGateway is IZKVerification {
         if (!_validMerkleRoots[merkleRoot]) revert InvalidMerkleRoot(merkleRoot);
         if (_usedNullifiers[nullifierHash]) revert NullifierAlreadyUsed(nullifierHash);
 
-        bool ok = nullifierMerkleVerifier.verifyProof(proof.a, proof.b, proof.c, publicSignals);
+        uint256[3] memory sigs = [publicSignals[0], publicSignals[1], publicSignals[2]];
+        bool ok = nullifierMerkleVerifier.verifyProof(proof.a, proof.b, proof.c, sigs);
         if (ok) {
             _usedNullifiers[nullifierHash] = true;
             emit NullifierConsumed(nullifierHash, extNullifier);
@@ -148,12 +164,10 @@ contract ZKGateway is IZKVerification {
         return ok;
     }
 
-    // -----------------------------------------------------------------------
-    // Composite proof (state-changing)
+    // ── Composite proof (state-changing) ─────────────────────────────────────
     // publicSignals[0..9]: current_days, min_age_days, age_commitment,
     //   issuer_pubkey_hash, credential_id_hash, schema_hash, binding_commitment,
     //   merkle_root, nullifier_hash, external_nullifier
-    // -----------------------------------------------------------------------
     function verifyCompositeProof(
         bytes32 credentialId,
         Groth16Proof calldata proof,
@@ -175,7 +189,10 @@ contract ZKGateway is IZKVerification {
         if (!_validMerkleRoots[merkleRoot]) revert InvalidMerkleRoot(merkleRoot);
         if (_usedNullifiers[nullifierHash]) revert NullifierAlreadyUsed(nullifierHash);
 
-        bool ok = compositeProofVerifier.verifyProof(proof.a, proof.b, proof.c, publicSignals);
+        uint256[10] memory sigs;
+        for (uint256 i = 0; i < 10; i++) sigs[i] = publicSignals[i];
+
+        bool ok = compositeProofVerifier.verifyProof(proof.a, proof.b, proof.c, sigs);
         if (ok) {
             _usedNullifiers[nullifierHash] = true;
             emit NullifierConsumed(nullifierHash, extNullifier);
@@ -184,18 +201,14 @@ contract ZKGateway is IZKVerification {
         return ok;
     }
 
-    // -----------------------------------------------------------------------
-    // Merkle root management (admin only)
-    // -----------------------------------------------------------------------
+    // ── Merkle root management ────────────────────────────────────────────────
     function addMerkleRoot(bytes32 root) external {
         if (msg.sender != merkleAdmin) revert Unauthorized();
         _validMerkleRoots[root] = true;
         emit MerkleRootAdded(root, msg.sender);
     }
 
-    // -----------------------------------------------------------------------
-    // Queries
-    // -----------------------------------------------------------------------
+    // ── Read-only queries ─────────────────────────────────────────────────────
     function isNullifierUsed(bytes32 nullifierHash) external view override returns (bool) {
         return _usedNullifiers[nullifierHash];
     }

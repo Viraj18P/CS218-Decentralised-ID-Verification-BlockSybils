@@ -27,7 +27,7 @@ contract RevocationRegistryTest is Test {
         assertTrue(revoked);
     }
 
-    function testIsRevokedReturnsFalseInitially() public {
+    function testIsRevokedReturnsFalseInitially() public view{
         bool revoked = registry.isRevoked(ISSUER, INDEX);
         assertFalse(revoked);
     }
@@ -77,7 +77,7 @@ contract RevocationRegistryTest is Test {
 
 
 
-    function testUnknownIndexNotRevoked() public {
+    function testUnknownIndexNotRevoked() public view {
         bool revoked = registry.isRevoked(ISSUER, UNKNOWN_INDEX);
         assertFalse(revoked);
     }

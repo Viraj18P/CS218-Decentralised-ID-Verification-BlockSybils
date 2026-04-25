@@ -7,7 +7,7 @@ import {IGroth16Verifier} from "../../interfaces/IGroth16Verifier.sol";
 
 // Groth16 verifier for circuits/NullifierMerkle.circom
 // Public signals: [0] merkle_root  [1] nullifier_hash  [2] external_nullifier
-contract NullifierMerkleVerifier is IGroth16Verifier {
+contract NullifierMerkleVerifier  {
     uint256 private constant SIGNAL_COUNT = 3;
 
     error WrongInputLength(uint256 got, uint256 expected);
@@ -17,7 +17,7 @@ contract NullifierMerkleVerifier is IGroth16Verifier {
         uint256[2][2] memory b,
         uint256[2] memory c,
         uint256[] memory input
-    ) external view override returns (bool) {
+    ) external view  returns (bool) {
         if (input.length != SIGNAL_COUNT) revert WrongInputLength(input.length, SIGNAL_COUNT);
         (a, b, c);
         return false;

@@ -1,0 +1,81 @@
+[
+  {
+    "type": "function",
+    "name": "placeBid",
+    "stateMutability": "payable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "withdrawRefund",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "endAuction",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "withdrawProceeds",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "recipient", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "highestBidder",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }]
+  },
+  {
+    "type": "function",
+    "name": "highestBid",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }]
+  },
+  {
+    "type": "function",
+    "name": "ended",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "pendingReturns",
+    "stateMutability": "view",
+    "inputs": [{ "name": "bidder", "type": "address" }],
+    "outputs": [{ "name": "", "type": "uint256" }]
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }]
+  },
+  {
+    "type": "event",
+    "name": "BidPlaced",
+    "inputs": [
+      { "name": "bidder", "type": "address", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "AuctionEnded",
+    "inputs": [
+      { "name": "winner", "type": "address", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ]
+  }
+]

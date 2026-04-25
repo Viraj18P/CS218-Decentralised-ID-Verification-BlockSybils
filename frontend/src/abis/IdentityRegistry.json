@@ -1,0 +1,176 @@
+[
+  {
+    "type": "function",
+    "name": "registerIdentity",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "verifier",     "type": "address" },
+      { "name": "documentHash", "type": "bytes32" },
+      { "name": "ipfsCid",      "type": "string"  },
+      { "name": "filename",     "type": "string"  }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "updateIPFSCid",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "newCid", "type": "string" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "getIPFSCid",
+    "stateMutability": "view",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": [{ "name": "", "type": "string" }]
+  },
+  {
+    "type": "function",
+    "name": "getAssignedVerifier",
+    "stateMutability": "view",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": [{ "name": "", "type": "address" }]
+  },
+  {
+    "type": "function",
+    "name": "verifyIdentity",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "revokeIdentity",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "addVerifier",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "verifier", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "removeVerifier",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "verifier", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "isVerified",
+    "stateMutability": "view",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "getStatus",
+    "stateMutability": "view",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": [{ "name": "", "type": "uint8" }]
+  },
+  {
+    "type": "function",
+    "name": "getIdentity",
+    "stateMutability": "view",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": [
+      { "name": "documentHash",     "type": "bytes32" },
+      { "name": "status",           "type": "uint8"   },
+      { "name": "verifiedBy",       "type": "address" },
+      { "name": "revokedBy",        "type": "address" },
+      { "name": "assignedVerifier", "type": "address" },
+      { "name": "registeredAt",     "type": "uint64"  },
+      { "name": "verifiedAt",       "type": "uint64"  },
+      { "name": "revokedAt",        "type": "uint64"  },
+      { "name": "ipfsCid",          "type": "string"  },
+      { "name": "filename",         "type": "string"  }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "hasRole",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "role",    "type": "bytes32" },
+      { "name": "account", "type": "address" }
+    ],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "VERIFIER_ROLE",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32" }]
+  },
+  {
+    "type": "function",
+    "name": "DEFAULT_ADMIN_ROLE",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32" }]
+  },
+  {
+    "type": "event",
+    "name": "IdentityRegistered",
+    "inputs": [
+      { "name": "user",         "type": "address", "indexed": true  },
+      { "name": "verifier",     "type": "address", "indexed": true  },
+      { "name": "documentHash", "type": "bytes32", "indexed": true  },
+      { "name": "ipfsCid",      "type": "string",  "indexed": false },
+      { "name": "filename",     "type": "string",  "indexed": false },
+      { "name": "registeredAt", "type": "uint64",  "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "IdentityVerified",
+    "inputs": [
+      { "name": "user",       "type": "address", "indexed": true  },
+      { "name": "verifiedBy", "type": "address", "indexed": true  },
+      { "name": "verifiedAt", "type": "uint64",  "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "IdentityRevoked",
+    "inputs": [
+      { "name": "user",      "type": "address", "indexed": true  },
+      { "name": "revokedBy", "type": "address", "indexed": true  },
+      { "name": "revokedAt", "type": "uint64",  "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "IdentityIPFSUpdated",
+    "inputs": [
+      { "name": "user",   "type": "address", "indexed": true  },
+      { "name": "oldCid", "type": "string",  "indexed": false },
+      { "name": "newCid", "type": "string",  "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "RoleGranted",
+    "inputs": [
+      { "name": "role",    "type": "bytes32", "indexed": true },
+      { "name": "account", "type": "address", "indexed": true },
+      { "name": "sender",  "type": "address", "indexed": true }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "RoleRevoked",
+    "inputs": [
+      { "name": "role",    "type": "bytes32", "indexed": true },
+      { "name": "account", "type": "address", "indexed": true },
+      { "name": "sender",  "type": "address", "indexed": true }
+    ]
+  }
+]

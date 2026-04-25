@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {ZKGateway} from "../../contracts/zk/ZKGateway.sol";
-import {IZKVerification} from "../../contracts/zk/IZKVerification.sol";
-import {MockGroth16Verifier} from "../../mocks/MockGroth16Verifier.sol";
+import {ZKGateway} from "../contracts/zk/ZKGateway.sol";
+import {IZKVerification} from "../contracts/zk/IZKVerification.sol";
+import {MockGroth16Verifier} from "../mocks/MockGroth16Verifier.sol";
 
 contract ZKGatewayTest is Test {
     ZKGateway private gateway;
@@ -44,7 +44,7 @@ contract ZKGatewayTest is Test {
     // Age proof
     // =========================================================================
 
-    function testVerifyAgeProofReturnsTrueOnValidProof() public {
+    function testVerifyAgeProofReturnsTrueOnValidProof() public view {
         uint256[] memory signals = _ageSignals(20000, 6570);
         assertTrue(gateway.verifyAgeProof(_proof(), signals));
     }
@@ -64,7 +64,7 @@ contract ZKGatewayTest is Test {
     // Credential proof
     // =========================================================================
 
-    function testVerifyCredentialProofSuccess() public {
+    function testVerifyCredentialProofSuccess() public view{
         uint256[] memory signals = _credSignals(CREDENTIAL_ID);
         assertTrue(gateway.verifyCredentialProof(CREDENTIAL_ID, _proof(), signals));
     }
@@ -194,7 +194,7 @@ contract ZKGatewayTest is Test {
         assertTrue(gateway.isMerkleRootValid(MERKLE_ROOT));
     }
 
-    function testIsNullifierUsedReturnsFalseInitially() public {
+    function testIsNullifierUsedReturnsFalseInitially() public view{
         assertFalse(gateway.isNullifierUsed(bytes32(uint256(0xffff))));
     }
 

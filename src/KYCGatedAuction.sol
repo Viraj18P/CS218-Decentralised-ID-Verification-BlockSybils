@@ -9,7 +9,7 @@ import {IdentityRegistry} from "./IdentityRegistry.sol";
 /// @notice Allows only verified identities to place bids.
 /// @dev Uses pull payments for refunds so placeBid does not transfer ETH to bidders.
 contract KYCGatedAuction is Ownable, ReentrancyGuard {
-    IdentityRegistry public immutable identityRegistry;
+    IdentityRegistry public immutable IDENTITY_REGISTRY;
 
     address public highestBidder;
     uint256 public highestBid;
@@ -28,14 +28,14 @@ contract KYCGatedAuction is Ownable, ReentrancyGuard {
     constructor(address identityRegistry_, address initialOwner) Ownable(initialOwner) {
         require(identityRegistry_ != address(0), "Registry cannot be zero");
         require(initialOwner != address(0), "Owner cannot be zero");
-        identityRegistry = IdentityRegistry(identityRegistry_);
+        IDENTITY_REGISTRY = IdentityRegistry(identityRegistry_);
     }
 
     /// @notice Places a bid if the caller has a verified identity.
     /// @dev Previous highest bids become pending refunds and are withdrawn separately.
     function placeBid() external payable nonReentrant {
         require(!ended, "Auction already ended");
-        require(identityRegistry.isVerified(msg.sender), "KYC required");
+        require(IDENTITY_REGISTRY.isVerified(msg.sender), "KYC required");
         require(msg.value > highestBid, "Bid too low");
 
         if (highestBidder != address(0)) {

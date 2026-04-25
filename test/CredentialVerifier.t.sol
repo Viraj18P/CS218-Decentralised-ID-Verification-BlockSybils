@@ -58,7 +58,7 @@ contract CredentialVerifierTest is Test {
                     VALIDATION SUCCESS CASES
     //////////////////////////////////////////////////////////////*/
 
-    function testValidateCredentialReturnsTrueForValidCredential() public {
+    function testValidateCredentialReturnsTrueForValidCredential() public view {
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
         uint256[] memory publicSignals = new uint256[](2);
@@ -161,7 +161,7 @@ contract CredentialVerifierTest is Test {
                     METADATA + CONTEXT TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testResolveCredentialContextReturnsCorrectData() public {
+    function testResolveCredentialContextReturnsCorrectData() public view {
         (
             string memory issuerDID,
             address issuer,
@@ -214,7 +214,7 @@ contract CredentialVerifierTest is Test {
                         FUZZ / EXTRA COVERAGE
     //////////////////////////////////////////////////////////////*/
 
-    function testFuzz_PublicSignals(uint256 x) public {
+    function testFuzz_PublicSignals(uint256 x) public view{
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
         uint256[] memory publicSignals = new uint256[](1);

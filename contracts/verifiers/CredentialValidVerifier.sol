@@ -8,7 +8,7 @@ import {IGroth16Verifier} from "../../interfaces/IGroth16Verifier.sol";
 // Groth16 verifier for circuits/CredentialValid.circom
 // Public signals: [0] issuer_pubkey_hash  [1] credential_id_hash
 //                 [2] schema_hash         [3] binding_commitment
-contract CredentialValidVerifier is IGroth16Verifier {
+contract CredentialValidVerifier  {
     uint256 private constant SIGNAL_COUNT = 4;
 
     error WrongInputLength(uint256 got, uint256 expected);
@@ -18,7 +18,7 @@ contract CredentialValidVerifier is IGroth16Verifier {
         uint256[2][2] memory b,
         uint256[2] memory c,
         uint256[] memory input
-    ) external view override returns (bool) {
+    ) external view  returns (bool) {
         if (input.length != SIGNAL_COUNT) revert WrongInputLength(input.length, SIGNAL_COUNT);
         (a, b, c);
         return false;

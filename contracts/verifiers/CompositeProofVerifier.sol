@@ -11,7 +11,7 @@ import {IGroth16Verifier} from "../../interfaces/IGroth16Verifier.sol";
 //   [3] issuer_pubkey_hash [4] credential_id_hash [5] schema_hash
 //   [6] binding_commitment [7] merkle_root        [8] nullifier_hash
 //   [9] external_nullifier
-contract CompositeProofVerifier is IGroth16Verifier {
+contract CompositeProofVerifier  {
     uint256 private constant SIGNAL_COUNT = 10;
 
     error WrongInputLength(uint256 got, uint256 expected);
@@ -21,7 +21,7 @@ contract CompositeProofVerifier is IGroth16Verifier {
         uint256[2][2] memory b,
         uint256[2] memory c,
         uint256[] memory input
-    ) external view override returns (bool) {
+    ) external view returns (bool) {
         if (input.length != SIGNAL_COUNT) revert WrongInputLength(input.length, SIGNAL_COUNT);
         (a, b, c);
         return false;
