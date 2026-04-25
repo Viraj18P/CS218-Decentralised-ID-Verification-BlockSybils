@@ -5,8 +5,14 @@ import {Test} from "forge-std/Test.sol";
 import {DIDRegistry} from "../src/DIDRegistry.sol";
 import {RevocationRegistry} from "../src/RevocationRegistry.sol";
 import {CredentialMetadataRegistry} from "../src/CredentialMetadataRegistry.sol";
+import {CredentialVerifier} from "../src/CredentialVerifier.sol";
 import {IdentityRegistry} from "../src/IdentityRegistry.sol";
 import {KYCGatedAuction} from "../src/KYCGatedAuction.sol";
+
+/// @dev Helper: no receive() — ETH transfers to it will revert
+contract EthRejecter {
+    // Intentionally empty — ETH call{value} reverts
+}
 
 // ============================================================================
 // DIDRegistry — cover updatePublicKey, all getter helpers, error branches
@@ -125,11 +131,11 @@ contract KYCAuctionCoverageTest is Test {
         vm.deal(USER2, 10 ether);
 
         vm.prank(USER);
-        identityReg.registerIdentity(keccak256("user-doc"));
+        identityReg.registerIdentity(address(this), keccak256("user-doc"), "ipfs://u", "u.pdf");
         identityReg.verifyIdentity(USER);
 
         vm.prank(USER2);
-        identityReg.registerIdentity(keccak256("user2-doc"));
+        identityReg.registerIdentity(address(this), keccak256("user2-doc"), "ipfs://u2", "u2.pdf");
         identityReg.verifyIdentity(USER2);
     }
 
@@ -208,6 +214,46 @@ contract KYCAuctionCoverageTest is Test {
     function testConstructorRevertsOnZeroRegistry() public {
         vm.expectRevert("Registry cannot be zero");
         new KYCGatedAuction(address(0), address(this));
+    }
+
+    function testConstructorRevertsOnZeroOwner() public {
+        vm.expectRevert();
+        new KYCGatedAuction(address(identityReg), address(0));
+    }
+
+    function testWithdrawProceedsRevertsWhenNoBids() public {
+        auction.endAuction();
+        vm.expectRevert("No funds to withdraw");
+        auction.withdrawProceeds(payable(address(0x1234)));
+    }
+
+    function testWithdrawRefundRevertsOnEthTransferFailure() public {
+        EthRejecter rejecter = new EthRejecter();
+        vm.deal(address(rejecter), 10 ether);
+
+        vm.prank(address(rejecter));
+        identityReg.registerIdentity(address(this), keccak256("rejecter-doc"), "ipfs://r", "r.pdf");
+        identityReg.verifyIdentity(address(rejecter));
+
+        vm.prank(address(rejecter));
+        auction.placeBid{value: 1 ether}();
+
+        vm.prank(USER2);
+        auction.placeBid{value: 2 ether}();
+
+        vm.prank(address(rejecter));
+        vm.expectRevert("ETH transfer failed");
+        auction.withdrawRefund();
+    }
+
+    function testWithdrawProceedsRevertsOnEthTransferFailure() public {
+        vm.prank(USER);
+        auction.placeBid{value: 1 ether}();
+        auction.endAuction();
+
+        EthRejecter rejecter = new EthRejecter();
+        vm.expectRevert("ETH transfer failed");
+        auction.withdrawProceeds(payable(address(rejecter)));
     }
 }
 
@@ -338,7 +384,7 @@ contract IdentityRegistryCoverageTest is Test {
     }
 
     function testConstructorRevertsOnZeroAdmin() public {
-        vm.expectRevert("Initial admin cannot be zero");
+        vm.expectRevert(); // ZeroAddressAdmin() custom error from ProtocolAccessManaged
         new IdentityRegistry(address(0));
     }
 
@@ -356,7 +402,7 @@ contract IdentityRegistryCoverageTest is Test {
 
     function testAddVerifierRevertsOnZeroAddress() public {
         vm.prank(ADMIN);
-        vm.expectRevert("Verifier cannot be zero");
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.InvalidUser.selector));
         reg.addVerifier(address(0));
     }
 
@@ -376,19 +422,19 @@ contract IdentityRegistryCoverageTest is Test {
 
     function testRemoveVerifierRevertsOnZeroAddress() public {
         vm.prank(ADMIN);
-        vm.expectRevert("Verifier cannot be zero");
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.InvalidUser.selector));
         reg.removeVerifier(address(0));
     }
 
     function testGetDocumentHash() public {
         bytes32 hash = keccak256("my-doc");
         vm.prank(USER);
-        reg.registerIdentity(hash);
+        reg.registerIdentity(ADMIN, hash, "ipfs://doc", "doc.pdf");
         assertEq(reg.getDocumentHash(USER), hash);
     }
 
     function testGetDocumentHashRevertsIfNotRegistered() public {
-        vm.expectRevert("Identity not registered");
+        vm.expectRevert(); // IdentityNotRegistered(user) custom error
         reg.getDocumentHash(USER);
     }
 
@@ -396,7 +442,7 @@ contract IdentityRegistryCoverageTest is Test {
         assertEq(uint256(reg.getStatus(USER)), 0); // NotRegistered
 
         vm.prank(USER);
-        reg.registerIdentity(keccak256("doc"));
+        reg.registerIdentity(ADMIN, keccak256("doc"), "ipfs://doc", "doc.pdf");
         assertEq(uint256(reg.getStatus(USER)), 1); // Pending
 
         vm.prank(ADMIN);
@@ -406,43 +452,43 @@ contract IdentityRegistryCoverageTest is Test {
 
     function testVerifyRevertsOnZeroAddress() public {
         vm.prank(ADMIN);
-        vm.expectRevert("User cannot be zero");
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.InvalidUser.selector));
         reg.verifyIdentity(address(0));
     }
 
     function testVerifyRevertsIfNotRegistered() public {
         vm.prank(ADMIN);
-        vm.expectRevert("Identity not registered");
+        vm.expectRevert(); // IdentityNotRegistered(user) custom error
         reg.verifyIdentity(USER);
     }
 
     function testVerifyRevertsIfAlreadyVerified() public {
         vm.prank(USER);
-        reg.registerIdentity(keccak256("doc"));
+        reg.registerIdentity(ADMIN, keccak256("doc"), "ipfs://doc", "doc.pdf");
 
         vm.prank(ADMIN);
         reg.verifyIdentity(USER);
 
         vm.prank(ADMIN);
-        vm.expectRevert("Identity is not pending");
+        vm.expectRevert(); // IdentityNotPending(user, status) custom error
         reg.verifyIdentity(USER);
     }
 
     function testRevokeRevertsOnZeroAddress() public {
         vm.prank(ADMIN);
-        vm.expectRevert("User cannot be zero");
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.InvalidUser.selector));
         reg.revokeIdentity(address(0));
     }
 
     function testRevokeRevertsIfNotRegistered() public {
         vm.prank(ADMIN);
-        vm.expectRevert("Identity not registered");
+        vm.expectRevert(); // IdentityNotRegistered(user) custom error
         reg.revokeIdentity(USER);
     }
 
     function testRevokeRevertsIfAlreadyRevoked() public {
         vm.prank(USER);
-        reg.registerIdentity(keccak256("doc"));
+        reg.registerIdentity(ADMIN, keccak256("doc"), "ipfs://doc", "doc.pdf");
 
         vm.prank(ADMIN);
         reg.verifyIdentity(USER);
@@ -451,14 +497,14 @@ contract IdentityRegistryCoverageTest is Test {
         reg.revokeIdentity(USER);
 
         vm.prank(ADMIN);
-        vm.expectRevert("Identity already revoked");
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.IdentityAlreadyRevoked.selector, USER));
         reg.revokeIdentity(USER);
     }
 
     /// @notice RUBRIC: "Non-verifier cannot approve identities"
     function testNonVerifierCannotVerifyIdentity() public {
         vm.prank(USER);
-        reg.registerIdentity(keccak256("doc"));
+        reg.registerIdentity(ADMIN, keccak256("doc"), "ipfs://doc", "doc.pdf");
 
         // USER has no VERIFIER_ROLE — calling verifyIdentity must revert
         vm.prank(USER);
@@ -469,7 +515,7 @@ contract IdentityRegistryCoverageTest is Test {
     /// @notice RUBRIC: "Revoking verified identity changes status to Revoked"
     function testRevokeChangesStatusToRevoked() public {
         vm.prank(USER);
-        reg.registerIdentity(keccak256("doc"));
+        reg.registerIdentity(ADMIN, keccak256("doc"), "ipfs://doc", "doc.pdf");
 
         vm.prank(ADMIN);
         reg.verifyIdentity(USER);
@@ -484,7 +530,7 @@ contract IdentityRegistryCoverageTest is Test {
     /// @notice RUBRIC: "Non-verifier cannot revoke identities"
     function testNonVerifierCannotRevokeIdentity() public {
         vm.prank(USER);
-        reg.registerIdentity(keccak256("doc"));
+        reg.registerIdentity(ADMIN, keccak256("doc"), "ipfs://doc", "doc.pdf");
 
         vm.prank(ADMIN);
         reg.verifyIdentity(USER);
@@ -493,5 +539,246 @@ contract IdentityRegistryCoverageTest is Test {
         vm.prank(USER);
         vm.expectRevert(); // AccessControlUnauthorizedAccount
         reg.revokeIdentity(USER);
+    }
+}
+
+// ============================================================================
+// IdentityRegistry — cover NEW teammate-added functions:
+//   updatePendingIdentity, updateIPFSCid, getIPFSCid, getAssignedVerifier,
+//   getPendingForVerifier, pause/unpause (whenNotPaused branches)
+// ============================================================================
+contract IdentityRegistryNewFuncsCoverageTest is Test {
+    IdentityRegistry private reg;
+
+    address private constant ADMIN    = address(0xAD);
+    address private constant VERIFIER = address(0xFE);
+    address private constant USER     = address(0xBEEF);
+
+    function setUp() public {
+        reg = new IdentityRegistry(ADMIN);
+
+        vm.prank(ADMIN);
+        reg.addVerifier(VERIFIER);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function _register() internal {
+        vm.prank(USER);
+        reg.registerIdentity(VERIFIER, keccak256("doc"), "ipfs://original", "doc.pdf");
+    }
+
+    function _registerAndVerify() internal {
+        _register();
+        vm.prank(VERIFIER);
+        reg.verifyIdentity(USER);
+    }
+
+    // ── updatePendingIdentity ─────────────────────────────────────────────────
+
+    function testUpdatePendingIdentitySucceeds() public {
+        _register();
+        bytes32 newHash = keccak256("new-doc");
+
+        vm.prank(USER);
+        reg.updatePendingIdentity(newHash);
+
+        assertEq(reg.getDocumentHash(USER), newHash);
+    }
+
+    function testUpdatePendingIdentityRevertsOnZeroHash() public {
+        _register();
+        vm.prank(USER);
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.EmptyDocumentHash.selector));
+        reg.updatePendingIdentity(bytes32(0));
+    }
+
+    function testUpdatePendingIdentityRevertsIfNotRegistered() public {
+        vm.prank(USER);
+        vm.expectRevert(); // IdentityNotRegistered
+        reg.updatePendingIdentity(keccak256("new"));
+    }
+
+    function testUpdatePendingIdentityRevertsIfNotPending() public {
+        _registerAndVerify();
+        vm.prank(USER);
+        vm.expectRevert(); // IdentityNotPending (status is Verified)
+        reg.updatePendingIdentity(keccak256("new-doc"));
+    }
+
+    function testUpdatePendingIdentityRevertsIfSameHash() public {
+        _register();
+        vm.prank(USER);
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.UnchangedDocumentHash.selector));
+        reg.updatePendingIdentity(keccak256("doc")); // same as original
+    }
+
+    // ── updateIPFSCid ─────────────────────────────────────────────────────────
+
+    function testUpdateIPFSCidSucceeds() public {
+        _register();
+        vm.prank(USER);
+        reg.updateIPFSCid("ipfs://new-cid");
+
+        assertEq(reg.getIPFSCid(USER), "ipfs://new-cid");
+    }
+
+    function testUpdateIPFSCidRevertsOnEmptyCid() public {
+        _register();
+        vm.prank(USER);
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.EmptyIPFSCid.selector));
+        reg.updateIPFSCid("");
+    }
+
+    function testUpdateIPFSCidRevertsIfNotRegistered() public {
+        vm.prank(USER);
+        vm.expectRevert(); // IdentityNotRegistered
+        reg.updateIPFSCid("ipfs://cid");
+    }
+
+    function testUpdateIPFSCidRevertsIfNotPending() public {
+        _registerAndVerify();
+        vm.prank(USER);
+        vm.expectRevert(); // IdentityNotPending (status is Verified)
+        reg.updateIPFSCid("ipfs://new-cid");
+    }
+
+    // ── getIPFSCid ───────────────────────────────────────────────────────────
+
+    function testGetIPFSCidReturnsCorrectValue() public {
+        _register();
+        assertEq(reg.getIPFSCid(USER), "ipfs://original");
+    }
+
+    function testGetIPFSCidRevertsIfNotRegistered() public {
+        vm.expectRevert(); // _requireRegistered → IdentityNotRegistered
+        reg.getIPFSCid(USER);
+    }
+
+    // ── getAssignedVerifier ───────────────────────────────────────────────────
+
+    function testGetAssignedVerifierReturnsCorrectValue() public {
+        _register();
+        assertEq(reg.getAssignedVerifier(USER), VERIFIER);
+    }
+
+    function testGetAssignedVerifierRevertsIfNotRegistered() public {
+        vm.expectRevert(); // _requireRegistered → IdentityNotRegistered
+        reg.getAssignedVerifier(USER);
+    }
+
+    // ── getPendingForVerifier (placeholder) ───────────────────────────────────
+
+    function testGetPendingForVerifierReturnsEmpty() public view {
+        address[] memory pending = reg.getPendingForVerifier(VERIFIER);
+        assertEq(pending.length, 0);
+    }
+
+    // ── pause / unpause (whenNotPaused branches) ──────────────────────────────
+
+    function testPauseBlocksRegister() public {
+        vm.prank(ADMIN);
+        reg.pause();
+
+        vm.prank(USER);
+        vm.expectRevert(); // Pausable: paused
+        reg.registerIdentity(VERIFIER, keccak256("doc"), "ipfs://cid", "doc.pdf");
+    }
+
+    function testUnpauseAllowsRegister() public {
+        vm.prank(ADMIN);
+        reg.pause();
+
+        vm.prank(ADMIN);
+        reg.unpause();
+
+        vm.prank(USER);
+        reg.registerIdentity(VERIFIER, keccak256("doc"), "ipfs://cid", "doc.pdf");
+        assertEq(uint256(reg.getStatus(USER)), 1); // Pending
+    }
+
+    function testPauseBlocksVerify() public {
+        _register();
+
+        vm.prank(ADMIN);
+        reg.pause();
+
+        vm.prank(VERIFIER);
+        vm.expectRevert(); // Pausable: paused
+        reg.verifyIdentity(USER);
+    }
+
+    function testPauseBlocksRevoke() public {
+        _registerAndVerify();
+
+        vm.prank(ADMIN);
+        reg.pause();
+
+        vm.prank(VERIFIER);
+        vm.expectRevert(); // Pausable: paused
+        reg.revokeIdentity(USER);
+    }
+
+    // ── 7 missing branch tests ────────────────────────────────────────────────
+
+    /// registerIdentity: verifier == address(0) branch (line 68)
+    function testRegisterIdentityRevertsOnZeroVerifier() public {
+        vm.prank(USER);
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.InvalidUser.selector));
+        reg.registerIdentity(address(0), keccak256("doc"), "ipfs://cid", "doc.pdf");
+    }
+
+    /// registerIdentity: bytes(ipfsCid).length == 0 branch (line 69)
+    function testRegisterIdentityRevertsOnEmptyIpfsCid() public {
+        vm.prank(USER);
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.EmptyIPFSCid.selector));
+        reg.registerIdentity(VERIFIER, keccak256("doc"), "", "doc.pdf");
+    }
+
+    /// verifyIdentity: assignedVerifier != msg.sender branch (line 114)
+    /// ADMIN has VERIFIER_ROLE but is NOT the assigned verifier (VERIFIER is)
+    function testVerifyRevertsIfWrongVerifier() public {
+        _register(); // assignedVerifier = VERIFIER
+
+        vm.prank(ADMIN); // ADMIN has VERIFIER_ROLE but is not the assignedVerifier
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.UnauthorizedVerifier.selector, ADMIN));
+        reg.verifyIdentity(USER);
+    }
+
+    /// revokeIdentity: status != Verified (Pending) branch (line 132)
+    function testRevokeRevertsIfStatusIsPending() public {
+        _register(); // status = Pending, not Verified
+
+        vm.prank(VERIFIER);
+        vm.expectRevert(); // IdentityNotVerified(user, Pending)
+        reg.revokeIdentity(USER);
+    }
+
+    /// addVerifier: hasRole already true branch (line 145)
+    function testAddVerifierRevertsIfAlreadyAssigned() public {
+        // ADMIN already has VERIFIER_ROLE from constructor
+        vm.prank(ADMIN);
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.VerifierAlreadyAssigned.selector, ADMIN));
+        reg.addVerifier(ADMIN);
+    }
+
+    /// removeVerifier: !hasRole branch (line 155) — address that has no verifier role
+    function testRemoveVerifierRevertsIfNotAssigned() public {
+        address nobody = address(0x1234);
+        vm.prank(ADMIN);
+        vm.expectRevert(abi.encodeWithSelector(IdentityRegistry.VerifierNotAssigned.selector, nobody));
+        reg.removeVerifier(nobody);
+    }
+
+    /// updatePendingIdentity: whenNotPaused false branch (paused)
+    function testUpdatePendingIdentityRevertsWhenPaused() public {
+        _register();
+
+        vm.prank(ADMIN);
+        reg.pause();
+
+        vm.prank(USER);
+        vm.expectRevert(); // Pausable: paused
+        reg.updatePendingIdentity(keccak256("new-doc"));
     }
 }

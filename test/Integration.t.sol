@@ -160,15 +160,13 @@ contract IntegrationTest is Test {
 
     function _verifyUser() internal {
         vm.prank(USER);
-        identityRegistry.registerIdentity(keccak256("user-doc"));
-
+        identityRegistry.registerIdentity(address(this), keccak256("user-doc"), "ipfs://user-doc", "user-doc.pdf");
         identityRegistry.verifyIdentity(USER);
     }
 
     function _verifyOther() internal {
         vm.prank(OTHER);
-        identityRegistry.registerIdentity(keccak256("other-doc"));
-
+        identityRegistry.registerIdentity(address(this), keccak256("other-doc"), "ipfs://other-doc", "other-doc.pdf");
         identityRegistry.verifyIdentity(OTHER);
     }
 

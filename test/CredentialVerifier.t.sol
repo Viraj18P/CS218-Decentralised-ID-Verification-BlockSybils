@@ -9,34 +9,33 @@ import {MockGroth16Verifier} from "../mocks/MockGroth16Verifier.sol";
 import {RevocationRegistry} from "../src/RevocationRegistry.sol";
 
 contract CredentialVerifierTest is Test {
-    DIDRegistry private didRegistry;
-    RevocationRegistry private revocationRegistry;
+    DIDRegistry                private didRegistry;
+    RevocationRegistry         private revocationRegistry;
     CredentialMetadataRegistry private credentialMetadataRegistry;
-    MockGroth16Verifier private groth16Verifier;
-    CredentialVerifier private verifierWrapper;
+    MockGroth16Verifier        private groth16Verifier;
+    CredentialVerifier         private verifierWrapper;
 
-    address private constant ISSUER = address(0xA11CE);
+    address private constant ISSUER   = address(0xA11CE);
     address private constant ATTACKER = address(0xB0B);
-    address private constant RANDOM = address(0xC0FFEE);
 
     bytes32 private constant CREDENTIAL_ID = keccak256("credential-1");
-    bytes32 private constant UNKNOWN_ID = keccak256("unknown");
+    bytes32 private constant UNKNOWN_ID    = keccak256("unknown");
 
     string private constant ISSUER_DID = "did:example:issuer-1";
 
     bytes private issuerPublicKey;
 
     /*//////////////////////////////////////////////////////////////
-                            SETUP
+                             SETUP
     //////////////////////////////////////////////////////////////*/
 
     function setUp() public {
         issuerPublicKey = hex"04aabbccddeeff";
 
-        didRegistry = new DIDRegistry();
-        revocationRegistry = new RevocationRegistry();
+        didRegistry              = new DIDRegistry();
+        revocationRegistry       = new RevocationRegistry();
         credentialMetadataRegistry = new CredentialMetadataRegistry(address(didRegistry));
-        groth16Verifier = new MockGroth16Verifier();
+        groth16Verifier          = new MockGroth16Verifier();
 
         verifierWrapper = new CredentialVerifier(
             address(didRegistry),
@@ -55,15 +54,32 @@ contract CredentialVerifierTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                    CONSTRUCTOR GUARD
+    //////////////////////////////////////////////////////////////*/
+
+    function testConstructorRevertsOnZeroAddress() public {
+        vm.expectRevert(abi.encodeWithSelector(CredentialVerifier.ZeroAddress.selector));
+        new CredentialVerifier(
+            address(0),
+            address(revocationRegistry),
+            address(credentialMetadataRegistry),
+            address(groth16Verifier)
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
                     VALIDATION SUCCESS CASES
     //////////////////////////////////////////////////////////////*/
 
-    function testValidateCredentialReturnsTrueForValidCredential() public view {
+    function testValidateCredentialReturnsTrueForValidCredential() public {
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
-        uint256[] memory publicSignals = new uint256[](2);
-        publicSignals[0] = 1;
-        publicSignals[1] = 77;
+        // Contract requires exactly 4 signals
+        uint256[] memory publicSignals = new uint256[](4);
+        publicSignals[0] = uint256(keccak256("issuer-pubkey-hash"));
+        publicSignals[1] = uint256(CREDENTIAL_ID);
+        publicSignals[2] = uint256(keccak256("schema-hash"));
+        publicSignals[3] = uint256(keccak256("binding-commitment"));
 
         bool result = verifierWrapper.validateCredential(CREDENTIAL_ID, proof, publicSignals);
         assertTrue(result);
@@ -79,8 +95,11 @@ contract CredentialVerifierTest is Test {
 
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
-        uint256[] memory publicSignals = new uint256[](1);
-        publicSignals[0] = 77;
+        uint256[] memory publicSignals = new uint256[](4);
+        publicSignals[0] = 1;
+        publicSignals[1] = 2;
+        publicSignals[2] = 3;
+        publicSignals[3] = 77; // revocationIndex
 
         bool result = verifierWrapper.validateCredential(CREDENTIAL_ID, proof, publicSignals);
         assertFalse(result);
@@ -91,8 +110,11 @@ contract CredentialVerifierTest is Test {
 
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
-        uint256[] memory publicSignals = new uint256[](1);
-        publicSignals[0] = 77;
+        uint256[] memory publicSignals = new uint256[](4);
+        publicSignals[0] = 1;
+        publicSignals[1] = 2;
+        publicSignals[2] = 3;
+        publicSignals[3] = 77;
 
         bool result = verifierWrapper.validateCredential(CREDENTIAL_ID, proof, publicSignals);
         assertFalse(result);
@@ -101,8 +123,11 @@ contract CredentialVerifierTest is Test {
     function testValidateCredentialRevertsForUnknownCredential() public {
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
-        uint256[] memory publicSignals = new uint256[](1);
-        publicSignals[0] = 77;
+        uint256[] memory publicSignals = new uint256[](4);
+        publicSignals[0] = 1;
+        publicSignals[1] = 2;
+        publicSignals[2] = 3;
+        publicSignals[3] = 77;
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -114,6 +139,18 @@ contract CredentialVerifierTest is Test {
         verifierWrapper.validateCredential(UNKNOWN_ID, proof, publicSignals);
     }
 
+    function testValidateCredentialRevertsOnWrongSignalCount() public {
+        CredentialVerifier.Groth16Proof memory proof = _dummyProof();
+
+        uint256[] memory publicSignals = new uint256[](1); // wrong — needs 4
+        publicSignals[0] = 77;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(CredentialVerifier.WrongSignalCount.selector, 1, 4)
+        );
+        verifierWrapper.validateCredential(CREDENTIAL_ID, proof, publicSignals);
+    }
+
     /*//////////////////////////////////////////////////////////////
                 VERIFY PRESENTATION (REVERT TESTS)
     //////////////////////////////////////////////////////////////*/
@@ -123,8 +160,11 @@ contract CredentialVerifierTest is Test {
 
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
-        uint256[] memory publicSignals = new uint256[](1);
-        publicSignals[0] = 77;
+        uint256[] memory publicSignals = new uint256[](4);
+        publicSignals[0] = 1;
+        publicSignals[1] = 2;
+        publicSignals[2] = 3;
+        publicSignals[3] = 77;
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -142,8 +182,11 @@ contract CredentialVerifierTest is Test {
 
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
-        uint256[] memory publicSignals = new uint256[](1);
-        publicSignals[0] = 77;
+        uint256[] memory publicSignals = new uint256[](4);
+        publicSignals[0] = 1;
+        publicSignals[1] = 2;
+        publicSignals[2] = 3;
+        publicSignals[3] = 77;
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -157,11 +200,24 @@ contract CredentialVerifierTest is Test {
         verifierWrapper.verifyPresentationOrRevert(CREDENTIAL_ID, proof, publicSignals);
     }
 
+    function testVerifyPresentationOrRevertSucceeds() public {
+        CredentialVerifier.Groth16Proof memory proof = _dummyProof();
+
+        uint256[] memory publicSignals = new uint256[](4);
+        publicSignals[0] = 1;
+        publicSignals[1] = 2;
+        publicSignals[2] = 3;
+        publicSignals[3] = 77;
+
+        bool result = verifierWrapper.verifyPresentationOrRevert(CREDENTIAL_ID, proof, publicSignals);
+        assertTrue(result);
+    }
+
     /*//////////////////////////////////////////////////////////////
                     METADATA + CONTEXT TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testResolveCredentialContextReturnsCorrectData() public view {
+    function testResolveCredentialContextReturnsCorrectData() public {
         (
             string memory issuerDID,
             address issuer,
@@ -214,12 +270,17 @@ contract CredentialVerifierTest is Test {
                         FUZZ / EXTRA COVERAGE
     //////////////////////////////////////////////////////////////*/
 
-    function testFuzz_PublicSignals(uint256 x) public view{
+    /// @dev Fuzz over revocation index — contract validates signal count first (needs 4)
+    function testFuzz_PublicSignals(uint256 x) public {
         CredentialVerifier.Groth16Proof memory proof = _dummyProof();
 
-        uint256[] memory publicSignals = new uint256[](1);
+        uint256[] memory publicSignals = new uint256[](4);
         publicSignals[0] = x;
+        publicSignals[1] = x;
+        publicSignals[2] = x;
+        publicSignals[3] = x;
 
+        // Just must not panic — may return true or false
         verifierWrapper.validateCredential(CREDENTIAL_ID, proof, publicSignals);
     }
 
