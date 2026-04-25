@@ -3,9 +3,12 @@
 
 | Name | Roll Number |
 |------|-------------|
-| Member 1 — fill in | Roll No. |
-| Member 2 — fill in | Roll No. |
-| Member 3 — fill in | Roll No. |
+| Viraj Samir Patel | 240002079 |
+| Subhanshu Kumar | Roll No. |
+| Yash Pankaj Choudhary | Roll No. |
+| Akarsh Raj | Roll No. |
+| Khaled Mohd. Abdul Qader | Roll No. |
+| Shlok Parikh | Roll No. |
 
 ---
 
