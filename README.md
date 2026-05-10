@@ -99,6 +99,13 @@ CS218-Decentralised-ID-Verification-BlockSybils/
 |- foundry.toml
 |- README.md
 ```
+---
+
+### Demo Video
+
+The below video shows, all flow, working and edge cases:
+
+https://drive.google.com/file/d/1037s_BzbCpEXsoYqgrSlIuYVnWNrXqdq/view?usp=sharing
 
 ---
 
@@ -389,14 +396,6 @@ Future implementations can support identity portability across multiple blockcha
 
 ### 4. Production-Grade Security and Deployment
 Further work can include smart contract audits, advanced encryption mechanisms, monitoring systems, and scalable deployment infrastructure for real-world usage.
-
----
-
-### Demo Video
-
-The below video shows, all flow, working and edge cases:
-
-https://drive.google.com/file/d/1037s_BzbCpEXsoYqgrSlIuYVnWNrXqdq/view?usp=sharing
 
 ---
 
