@@ -24,11 +24,11 @@ import { ethers } from 'ethers'
 import styles from './TabPanels.module.css'
 import TxStatus from './TxStatus'
 import { useIdentityRegistry } from '../hooks/useIdentityRegistry'
-import { useKYCAuction }        from '../hooks/useKYCAuction'
-import { useTxState }            from '../hooks/useTxState'
-import { useZKProver }           from '../hooks/useZKProver'
-import { CONTRACTS }             from '../contracts'
-import RegistryABI               from '../abis/IdentityRegistry.json'
+import { useKYCAuction } from '../hooks/useKYCAuction'
+import { useTxState } from '../hooks/useTxState'
+import { useZKProver } from '../hooks/useZKProver'
+import { CONTRACTS } from '../contracts'
+import RegistryABI from '../abis/IdentityRegistry.json'
 import {
   getEncryptionPublicKey,
   encryptAndUpload,
@@ -39,11 +39,12 @@ import {
   encodeFilename,
   decodeFilename,
 } from '../utils/cryptoUtils'
+import { getVerifierDisplay, setVerifierName } from '../verifierNames'
 
 // ─── Status helpers (unchanged) ───────────────────────────────────────────────
 const STATUS_LABELS = ['Not Registered', 'Pending', 'Verified', 'Revoked']
-const STATUS_ICONS  = ['❓', '⏳', '✅', '🚫']
-const STATUS_TYPES  = ['none', 'pending', 'verified', 'revoked']
+const STATUS_ICONS = ['❓', '⏳', '✅', '🚫']
+const STATUS_TYPES = ['none', 'pending', 'verified', 'revoked']
 const STATUS_COLORS = ['#6b7280', '#f59e0b', '#22c55e', '#ef4444']
 
 function FieldError({ msg }) {
@@ -133,35 +134,35 @@ async function fetchAllIdentities() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // PASTE 1 — Replace fetchAllVerifiers (around line 90 in TabPanels.jsx)
 // ═══════════════════════════════════════════════════════════════════════════════
- 
+
 async function fetchAllVerifiers(currentAccount = null) {
   try {
-    const provider     = new ethers.BrowserProvider(window.ethereum)
-    const contract     = new ethers.Contract(CONTRACTS.IDENTITY_REGISTRY, RegistryABI, provider)
+    const provider = new ethers.BrowserProvider(window.ethereum)
+    const contract = new ethers.Contract(CONTRACTS.IDENTITY_REGISTRY, RegistryABI, provider)
     const verifierRole = await contract.VERIFIER_ROLE()
-    const active       = new Set()
- 
+    const active = new Set()
+
     try {
-      const latest    = await provider.getBlockNumber()
+      const latest = await provider.getBlockNumber()
       const fromBlock = Math.max(0, latest - 100000)
- 
+
       // Use raw getLogs with RoleGranted/RoleRevoked topic signatures
       // These are emitted by OZ AccessControl but not in your custom ABI events
       const [grantedLogs, revokedLogs] = await Promise.all([
         provider.getLogs({
-          address:   CONTRACTS.IDENTITY_REGISTRY,
-          topics:    [ethers.id('RoleGranted(bytes32,address,address)'), verifierRole],
+          address: CONTRACTS.IDENTITY_REGISTRY,
+          topics: [ethers.id('RoleGranted(bytes32,address,address)'), verifierRole],
           fromBlock,
-          toBlock:   latest,
+          toBlock: latest,
         }),
         provider.getLogs({
-          address:   CONTRACTS.IDENTITY_REGISTRY,
-          topics:    [ethers.id('RoleRevoked(bytes32,address,address)'), verifierRole],
+          address: CONTRACTS.IDENTITY_REGISTRY,
+          topics: [ethers.id('RoleRevoked(bytes32,address,address)'), verifierRole],
           fromBlock,
-          toBlock:   latest,
+          toBlock: latest,
         }),
       ])
- 
+
       // account is the 2nd indexed topic → topics[2], padded to 32 bytes
       grantedLogs.forEach(log => {
         const account = ethers.getAddress('0x' + log.topics[2].slice(26))
@@ -174,13 +175,13 @@ async function fetchAllVerifiers(currentAccount = null) {
     } catch (e) {
       console.warn('RoleGranted log query failed, falling back:', e)
     }
- 
+
     // Always include currentAccount if they hold the role
     if (currentAccount && ethers.isAddress(currentAccount)) {
       const has = await contract.hasRole(verifierRole, currentAccount).catch(() => false)
       if (has) active.add(currentAccount.toLowerCase())
     }
- 
+
     // Verify each address still has the role on-chain
     const results = await Promise.all(
       Array.from(active).map(async addr => {
@@ -188,21 +189,62 @@ async function fetchAllVerifiers(currentAccount = null) {
         return has ? ethers.getAddress(addr) : null
       })
     )
- 
+
     return results.filter(Boolean)
   } catch (err) {
     console.error('fetchAllVerifiers error:', err)
     return []
   }
 }
+// ─── fetchRevokedVerifiers — reads VerifierRemoved events ────────────────────
+async function fetchRevokedVerifiers() {
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum)
+    const contract = new ethers.Contract(CONTRACTS.IDENTITY_REGISTRY, RegistryABI, provider)
+    const verifierRole = await contract.VERIFIER_ROLE()
+    const latest = await provider.getBlockNumber()
+    const fromBlock = Math.max(0, latest - 100000)
+
+    // RoleRevoked(bytes32 role, address account, address sender)
+    const revokedLogs = await provider.getLogs({
+      address: CONTRACTS.IDENTITY_REGISTRY,
+      topics: [ethers.id('RoleRevoked(bytes32,address,address)'), verifierRole],
+      fromBlock,
+      toBlock: latest,
+    }).catch(() => [])
+
+    const candidates = new Set()
+    revokedLogs.forEach(log => {
+      const account = ethers.getAddress('0x' + log.topics[2].slice(26))
+      candidates.add(account.toLowerCase())
+    })
+
+    // Keep only those that no longer hold the role (i.e. not re-granted)
+    const results = await Promise.all(
+      Array.from(candidates).map(async addr => {
+        const has = await contract.hasRole(verifierRole, addr).catch(() => false)
+        return !has ? ethers.getAddress(addr) : null
+      })
+    )
+    return results.filter(Boolean)
+  } catch (err) {
+    console.error('fetchRevokedVerifiers error:', err)
+    return []
+  }
+}
+
 // ─── Error parser (unchanged) ─────────────────────────────────────────────────
 function parseContractError(err, context = {}) {
-  const addr = context.addr ? `${context.addr.slice(0,10)}…` : 'This address'
+  const addr = context.addr ? `${context.addr.slice(0, 10)}…` : 'This address'
   if (err?.code === 4001) return 'Transaction rejected by user.'
   const reason = err?.reason ?? err?.shortMessage ?? err?.data?.message ?? err?.message ?? ''
   const errData = err?.data ?? ''
   if (reason.includes('AccessControlUnauthorizedAccount') || reason.includes('missing role') || errData.includes('AccessControlUnauthorizedAccount'))
     return 'Your wallet does not have the Verifier role. Ask an admin to grant it first.'
+  if (reason.includes('VerifierPermanentlyRevoked') || reason.includes('permanently revoked'))
+    return `${addr} has been permanently revoked and cannot be re-granted the Verifier role.`
+  if (reason.includes('VerifierIdentityRevoked') || reason.includes('identity') && reason.includes('revoked'))
+    return `${addr} has a revoked identity and cannot be granted the Verifier role.`
   if (reason.includes('not registered') || reason.includes('NotRegistered'))
     return `${addr} has never registered an identity.`
   if (reason.includes('already revoked') || reason.includes('AlreadyRevoked'))
@@ -214,23 +256,25 @@ function parseContractError(err, context = {}) {
   if (reason.includes('unknown custom error') || reason === '') {
     if (context.action === 'revoke') return `Cannot revoke: ${addr} may not have a registered identity, or is already revoked.`
     if (context.action === 'verify') return `Cannot verify: ${addr} may not be in Pending state.`
-    return 'Transaction failed — check your role and the identity state.'
+    return 'Either revoked or already a verifier.'
   }
   return reason || 'Transaction failed.'
 }
 
 // ─── DecryptModal ─────────────────────────────────────────────────────────────
 function DecryptModal({ identity, account, onClose }) {
-  const [phase, setPhase]       = useState('idle') // idle | fetching | metamask | done | error
-  const [error, setError]       = useState(null)
-  const [objectUrl, setObj]     = useState(null)
-  const [mimeType, setMime]     = useState('application/octet-stream')
+  const [phase, setPhase] = useState('idle') // idle | fetching | metamask | verifying | done | error
+  const [error, setError] = useState(null)
+  const [objectUrl, setObj] = useState(null)
+  const [mimeType, setMime] = useState('application/octet-stream')
+  const [hashMatch, setHashMatch] = useState(null) // null | true | false
 
   useEffect(() => () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }, [objectUrl])
 
   const handleDecrypt = async () => {
     setPhase('fetching')
     setError(null)
+    setHashMatch(null)
     try {
       setPhase('metamask') // MetaMask popup will appear for eth_decrypt
       const plainBytes = await fetchAndDecrypt(
@@ -239,6 +283,23 @@ function DecryptModal({ identity, account, onClose }) {
         identity.ivB64,
         account
       )
+
+      // ── Hash verification ──────────────────────────────────────────────────
+      // Compute SHA-256 of the decrypted plaintext and compare to on-chain hash.
+      // The registrant stored keccak256 of the original file; here we recompute
+      // using the same SHA-256 that the browser uses during registration.
+      setPhase('verifying')
+      try {
+        const hashBuffer = await crypto.subtle.digest('SHA-256', plainBytes)
+        const hexHash = '0x' + Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('')
+        // documentHash on-chain is bytes32 hex — compare case-insensitively
+        const onChainHash = (identity.documentHash || '').toLowerCase()
+        setHashMatch(hexHash.toLowerCase() === onChainHash)
+      } catch {
+        setHashMatch(null) // hash check inconclusive — don't block viewing
+      }
+
       const ext = (identity.filename || '').split('.').pop().toLowerCase()
       const mime = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' }[ext] || 'application/octet-stream'
       setMime(mime)
@@ -298,9 +359,33 @@ function DecryptModal({ identity, account, onClose }) {
           </div>
         )}
 
+        {phase === 'verifying' && (
+          <div style={{ textAlign: 'center', padding: '1rem', opacity: 0.8 }}>
+            🔍 Verifying document hash against blockchain…
+          </div>
+        )}
+
         {phase === 'done' && objectUrl && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#22c55e', fontWeight: 600, marginBottom: '0.75rem' }}>✅ Decryption successful</div>
+            <div style={{ color: '#22c55e', fontWeight: 600, marginBottom: '0.5rem' }}>✅ Decryption successful</div>
+
+            {/* Hash verification result badge */}
+            {hashMatch === true && (
+              <div style={{ marginBottom: '0.75rem', padding: '0.45rem 0.75rem', borderRadius: '8px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', fontSize: '0.78rem', fontWeight: 600 }}>
+                🔗 Hash Verified — document matches on-chain record
+              </div>
+            )}
+            {hashMatch === false && (
+              <div style={{ marginBottom: '0.75rem', padding: '0.45rem 0.75rem', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: '0.78rem', fontWeight: 600 }}>
+                ⚠️ Hash Mismatch — this file does NOT match the registered document hash. Do not approve.
+              </div>
+            )}
+            {hashMatch === null && (
+              <div style={{ marginBottom: '0.75rem', padding: '0.45rem 0.75rem', borderRadius: '8px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24', fontSize: '0.78rem' }}>
+                ⚠️ Hash check inconclusive — verify manually.
+              </div>
+            )}
+
             {mimeType.startsWith('image/') && (
               <img src={objectUrl} alt="Decrypted" style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '8px', marginBottom: '0.75rem' }} />
             )}
@@ -394,17 +479,17 @@ export function ConnectPanel({ onConnect, isConnected, account }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export function RegisterPanel({ isConnected, account }) {
   const fileInputRef = useRef(null)
-  const [documentHash,     setDocumentHash]     = useState(null)
-  const [fileName,         setFileName]         = useState(null)
-  const [fieldError,       setFieldError]       = useState(null)
-  const [isUploading,      setIsUploading]      = useState(false)
-  const [verifiers,        setVerifiers]        = useState([])
+  const [documentHash, setDocumentHash] = useState(null)
+  const [fileName, setFileName] = useState(null)
+  const [fieldError, setFieldError] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [verifiers, setVerifiers] = useState([])
   const [selectedVerifier, setSelectedVerifier] = useState('')
 
   // Encryption state
-  const [verifierPubKey,   setVerifierPubKey]   = useState(null)  // cached pubkey for selected verifier
-  const [pubKeyStatus,     setPubKeyStatus]     = useState('none') // none | fetching | ready | error
-  const [uploadStatus,     setUploadStatus]     = useState('')
+  const [verifierPubKey, setVerifierPubKey] = useState(null)  // cached pubkey for selected verifier
+  const [pubKeyStatus, setPubKeyStatus] = useState('none') // none | fetching | ready | error
+  const [uploadStatus, setUploadStatus] = useState('')
 
   const { registerIdentity } = useIdentityRegistry(account)
   const { txState, run, reset } = useTxState()
@@ -472,14 +557,14 @@ export function RegisterPanel({ isConnected, account }) {
   }, [hashFile])
 
   const handleRegister = async () => {
-    if (!isConnected)  return setFieldError('Connect your wallet first.')
+    if (!isConnected) return setFieldError('Connect your wallet first.')
     if (!documentHash) return setFieldError('Please select a document to hash.')
     if (!selectedVerifier) return setFieldError('Please select a verifier from the list.')
 
     const file = fileInputRef.current?.files?.[0]
     if (!file) return setFieldError('Unable to locate the file for upload.')
 
-    const apiKey    = import.meta.env.VITE_PINATA_API_KEY || ''
+    const apiKey = import.meta.env.VITE_PINATA_API_KEY || ''
     const apiSecret = import.meta.env.VITE_PINATA_SECRET_API_KEY || ''
 
     try {
@@ -530,13 +615,24 @@ export function RegisterPanel({ isConnected, account }) {
                   ⏳ Loading verifiers...
                 </div>
               ) : (
-                <select
-                  value={selectedVerifier}
-                  onChange={(e) => { setSelectedVerifier(e.target.value); setFieldError(null) }}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', marginTop: '0.25rem', fontFamily: 'monospace', fontSize: '0.85rem' }}
-                >
-                  {verifiers.map(v => <option key={v} value={v} style={{ color: '#000' }}>{v}</option>)}
-                </select>
+                <>
+                  <select
+                    value={selectedVerifier}
+                    onChange={(e) => { setSelectedVerifier(e.target.value); setFieldError(null) }}
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', marginTop: '0.25rem', fontSize: '0.85rem' }}
+                  >
+                    {verifiers.map(v => (
+                      <option key={v} value={v} style={{ color: '#000' }}>
+                        {getVerifierDisplay(v)}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedVerifier && (
+                    <div style={{ fontSize: '0.7rem', opacity: 0.45, marginTop: '0.25rem', fontFamily: 'monospace' }}>
+                      Address: {selectedVerifier}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -560,7 +656,7 @@ export function RegisterPanel({ isConnected, account }) {
               </div>
               {encryptionReady && (
                 <div style={{ fontSize: '0.72rem', opacity: 0.6, marginTop: '0.35rem' }}>
-                  Key cached for {selectedVerifier.slice(0, 12)}…
+                  Key cached for {getVerifierDisplay(selectedVerifier)} ({selectedVerifier.slice(0, 10)}…)
                 </div>
               )}
             </div>
@@ -602,18 +698,18 @@ export function RegisterPanel({ isConnected, account }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function VerifyPanel({ isConnected, account }) {
-  const [addr,          setAddr]          = useState('')
-  const [addrError,     setAddrError]     = useState(null)
-  const [preflights,    setPreflights]    = useState(null)
-  const [identities,    setIdentities]    = useState([])
-  const [listLoading,   setListLoading]   = useState(false)
-  const [filter,        setFilter]        = useState('mine')
-  const [actionError,   setActionError]   = useState(null)
+  const [addr, setAddr] = useState('')
+  const [addrError, setAddrError] = useState(null)
+  const [preflights, setPreflights] = useState(null)
+  const [identities, setIdentities] = useState([])
+  const [listLoading, setListLoading] = useState(false)
+  const [filter, setFilter] = useState('mine')
+  const [actionError, setActionError] = useState(null)
   const [decryptTarget, setDecryptTarget] = useState(null)
 
   // ── Role check ────────────────────────────────────────────────────────────
-  const [isPrivileged,  setIsPrivileged]  = useState(false)
-  const [roleChecked,   setRoleChecked]   = useState(false) // prevent flicker
+  const [isPrivileged, setIsPrivileged] = useState(false)
+  const [roleChecked, setRoleChecked] = useState(false) // prevent flicker
 
   const { verifyIdentity, revokeIdentity, getIdentity, isVerifierRole, isAdmin } =
     useIdentityRegistry(account)
@@ -652,7 +748,7 @@ export function VerifyPanel({ isConnected, account }) {
     let cancelled = false
     Promise.all([getIdentity(addr), isVerifierRole(account)])
       .then(([identity, isVerifier]) => { if (!cancelled) setPreflights({ identity, isVerifier }) })
-      .catch(() => {})
+      .catch(() => { })
     return () => { cancelled = true }
   }, [addr, account, isConnected, getIdentity, isVerifierRole])
 
@@ -686,11 +782,11 @@ export function VerifyPanel({ isConnected, account }) {
     try {
       const identity = await getIdentity(targetAddr)
       if (identity.status === 0)
-        return setActionError(`${targetAddr.slice(0,10)}… has never registered an identity.`)
+        return setActionError(`${targetAddr.slice(0, 10)}… has never registered an identity.`)
       if (identity.status === 1)
         return setActionError(`Cannot revoke a Pending identity. Approve it first.`)
       if (identity.status === 3)
-        return setActionError(`${targetAddr.slice(0,10)}… is already Revoked.`)
+        return setActionError(`${targetAddr.slice(0, 10)}… is already Revoked.`)
     } catch { /* let contract decide */ }
 
     reset()
@@ -701,8 +797,8 @@ export function VerifyPanel({ isConnected, account }) {
   }
 
   const filtered = identities.filter(i => {
-    if (filter === 'mine')     return i.assignedVerifier?.toLowerCase() === account?.toLowerCase()
-    if (filter === 'pending')  return i.status === 1
+    if (filter === 'mine') return i.assignedVerifier?.toLowerCase() === account?.toLowerCase()
+    if (filter === 'pending') return i.status === 1
     if (filter === 'verified') return i.status === 2
     return true
   })
@@ -790,7 +886,7 @@ export function VerifyPanel({ isConnected, account }) {
             </h3>
 
             <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-              {[['mine','👤 Mine'],['all','All'],['pending','⏳ Pending'],['verified','✅ Verified']].map(([key, label]) => (
+              {[['mine', '👤 Mine'], ['all', 'All'], ['pending', '⏳ Pending'], ['verified', '✅ Verified']].map(([key, label]) => (
                 <button
                   key={key} onClick={() => setFilter(key)}
                   style={{ padding: '0.25rem 0.6rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', background: filter === key ? 'rgba(var(--accent-primary-rgb),0.2)' : 'rgba(255,255,255,0.05)', color: filter === key ? 'var(--accent-primary)' : 'var(--text-secondary)', fontWeight: filter === key ? 600 : 400 }}
@@ -806,8 +902,8 @@ export function VerifyPanel({ isConnected, account }) {
               ? <div style={{ opacity: 0.5, fontSize: '0.85rem' }}>Fetching from chain…</div>
               : filtered.length === 0
                 ? <div style={{ opacity: 0.4, fontSize: '0.85rem' }}>
-                    {filter === 'mine' ? 'No identities assigned to your address yet.' : 'No identities found.'}
-                  </div>
+                  {filter === 'mine' ? 'No identities assigned to your address yet.' : 'No identities found.'}
+                </div>
                 : (
                   <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                     {filtered.map(identity => (
@@ -818,7 +914,7 @@ export function VerifyPanel({ isConnected, account }) {
                         onDecrypt={setDecryptTarget}
                         onAction={
                           identity.status === 1 ? (a) => selectAddress(a) :
-                          identity.status === 2 ? (a) => handleRevoke(a) : null
+                            identity.status === 2 ? (a) => handleRevoke(a) : null
                         }
                         actionLabel={identity.status === 1 ? 'Select' : 'Revoke'}
                         actionStyle={identity.status === 2 ? 'danger' : 'primary'}
@@ -871,16 +967,16 @@ export function VerifyPanel({ isConnected, account }) {
 // LookupPanel (unchanged from original)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function LookupPanel() {
-  const [addr,    setAddr]    = useState('')
-  const [result,  setResult]  = useState(null)
+  const [addr, setAddr] = useState('')
+  const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState(null)
+  const [error, setError] = useState(null)
 
   const { getIdentity } = useIdentityRegistry(null)
 
   const handleLookup = async () => {
     setError(null); setResult(null)
-    if (!addr)                   { setError('Enter an address.'); return }
+    if (!addr) { setError('Enter an address.'); return }
     if (!ethers.isAddress(addr)) { setError('Invalid Ethereum address.'); return }
     setLoading(true)
     try {
@@ -936,7 +1032,7 @@ export function LookupPanel() {
 // AuctionPanel (unchanged from original)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function AuctionPanel({ isConnected, account }) {
-  const [bidAmount,    setBidAmount]    = useState('')
+  const [bidAmount, setBidAmount] = useState('')
   const [auctionState, setAuctionState] = useState(null)
   const [bidAmountErr, setBidAmountErr] = useState(null)
 
@@ -945,7 +1041,7 @@ export function AuctionPanel({ isConnected, account }) {
 
   const loadState = useCallback(async () => {
     if (!isConnected) return
-    try { setAuctionState(await getAuctionState(account)) } catch {}
+    try { setAuctionState(await getAuctionState(account)) } catch { }
   }, [account, isConnected, getAuctionState])
 
   useEffect(() => { loadState() }, [loadState, txState.status])
@@ -992,17 +1088,24 @@ export function AuctionPanel({ isConnected, account }) {
 // AdminPanel (unchanged from original)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function AdminPanel({ isConnected, account }) {
-  const [grantAddr,   setGrantAddr]   = useState('')
-  const [revokeAddr,  setRevokeAddr]  = useState('')
-  const [grantErr,    setGrantErr]    = useState(null)
-  const [revokeErr,   setRevokeErr]   = useState(null)
+  const [grantAddr, setGrantAddr] = useState('')
+  const [revokeAddr, setRevokeAddr] = useState('')
+  const [grantErr, setGrantErr] = useState(null)
+  const [revokeErr, setRevokeErr] = useState(null)
   const [isAdminUser, setIsAdminUser] = useState(false)
-  const [verifiers,   setVerifiers]   = useState([])
+  const [verifiers, setVerifiers] = useState([])
   const [listLoading, setListLoading] = useState(false)
+  const [revokedVerifiers, setRevokedVerifiers] = useState([])
+  const [revokedLoading, setRevokedLoading] = useState(false)
 
   const { addVerifier, removeVerifier, isAdmin } = useIdentityRegistry(account)
-  const grantTx  = useTxState()
+  const grantTx = useTxState()
   const revokeTx = useTxState()
+
+  // orgNameEdit: { [addr]: string } — tracks the text in each inline name input
+  const [orgNameEdit, setOrgNameEdit] = useState({})
+  // editingAddr: which verifier row is open for name editing
+  const [editingAddr, setEditingAddr] = useState(null)
 
   useEffect(() => {
     if (!account || !isConnected) { setIsAdminUser(false); return }
@@ -1013,14 +1116,25 @@ export function AdminPanel({ isConnected, account }) {
     if (!isConnected) return
     setListLoading(true)
     try { setVerifiers(await fetchAllVerifiers(account)) }
-    catch {}
+    catch { }
     finally { setListLoading(false) }
   }, [isConnected, account])
 
-  useEffect(() => { loadVerifiers() }, [loadVerifiers])
+  const loadRevokedVerifiers = useCallback(async () => {
+    if (!isConnected) return
+    setRevokedLoading(true)
+    try { setRevokedVerifiers(await fetchRevokedVerifiers()) }
+    catch { }
+    finally { setRevokedLoading(false) }
+  }, [isConnected])
+
+  useEffect(() => { loadVerifiers(); loadRevokedVerifiers() }, [loadVerifiers, loadRevokedVerifiers])
   useEffect(() => {
-    if (grantTx.txState.status === 'confirmed' || revokeTx.txState.status === 'confirmed') loadVerifiers()
-  }, [grantTx.txState.status, revokeTx.txState.status, loadVerifiers])
+    if (grantTx.txState.status === 'confirmed' || revokeTx.txState.status === 'confirmed') {
+      loadVerifiers()
+      loadRevokedVerifiers()
+    }
+  }, [grantTx.txState.status, revokeTx.txState.status, loadVerifiers, loadRevokedVerifiers])
 
   const handleGrant = async () => {
     setGrantErr(null)
@@ -1063,19 +1177,98 @@ export function AdminPanel({ isConnected, account }) {
           <div className={`${styles.card} card`}>
             <h3>🛡️ Active Verifiers</h3>
             {listLoading ? <div style={{ opacity: 0.5, fontSize: '0.85rem' }}>Fetching from chain…</div> :
-             verifiers.length === 0 ? <div style={{ opacity: 0.4, fontSize: '0.85rem' }}>No verifiers granted yet.</div> : (
-              <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
-                {verifiers.map(addr => (
-                  <div key={addr} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', marginBottom: '0.3rem', fontSize: '0.8rem' }}>
-                    <span>🛡️</span><span style={{ fontFamily: 'monospace', flex: 1 }}>{addr.slice(0,12)}…{addr.slice(-8)}</span>
-                    <button onClick={() => handleRevoke(addr)} disabled={revokeTx.txState.status === 'pending'} style={{ padding: '0.25rem 0.6rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.72rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 600 }}>Revoke</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={loadVerifiers} style={{ marginTop: '0.5rem', padding: '0.25rem 0.6rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>↻ Refresh</button>
+              verifiers.length === 0 ? <div style={{ opacity: 0.4, fontSize: '0.85rem' }}>No verifiers granted yet.</div> : (
+                <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                  {verifiers.map(addr => (
+                    <div key={addr} style={{ borderRadius: '8px', background: 'rgba(255,255,255,0.03)', marginBottom: '0.3rem', overflow: 'hidden' }}>
+                      {/* Main row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}>
+                        <span>🛡️</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getVerifierDisplay(addr)}</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', opacity: 0.45 }}>{addr.slice(0, 12)}…{addr.slice(-8)}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingAddr(editingAddr === addr ? null : addr)
+                            setOrgNameEdit(prev => ({ ...prev, [addr]: getVerifierDisplay(addr) === `${addr.slice(0, 10)}…${addr.slice(-6)}` ? '' : getVerifierDisplay(addr) }))
+                          }}
+                          title="Set organisation name"
+                          style={{ padding: '0.22rem 0.5rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.72rem', background: editingAddr === addr ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.07)', color: editingAddr === addr ? '#a78bfa' : 'var(--text-secondary)', fontWeight: 600 }}
+                        >✏️</button>
+                        <button onClick={() => handleRevoke(addr)} disabled={revokeTx.txState.status === 'pending'} style={{ padding: '0.25rem 0.6rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.72rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 600 }}>Revoke</button>
+                      </div>
+                      {/* Inline name editor — expands when pencil clicked */}
+                      {editingAddr === addr && (
+                        <div style={{ padding: '0.4rem 0.75rem 0.6rem', background: 'rgba(139,92,246,0.06)', borderTop: '1px solid rgba(139,92,246,0.12)', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="Organisation name…"
+                            value={orgNameEdit[addr] || ''}
+                            onChange={e => setOrgNameEdit(prev => ({ ...prev, [addr]: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                setVerifierName(addr, orgNameEdit[addr] || '')
+                                setEditingAddr(null)
+                              }
+                              if (e.key === 'Escape') setEditingAddr(null)
+                            }}
+                            style={{ flex: 1, padding: '0.35rem 0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(139,92,246,0.3)', color: 'white', fontSize: '0.8rem' }}
+                          />
+                          <button
+                            onClick={() => { setVerifierName(addr, orgNameEdit[addr] || ''); setEditingAddr(null) }}
+                            style={{ padding: '0.32rem 0.7rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', background: 'rgba(139,92,246,0.2)', color: '#a78bfa', fontWeight: 700 }}
+                          >Save</button>
+                          <button
+                            onClick={() => setEditingAddr(null)}
+                            style={{ padding: '0.32rem 0.5rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}
+                          >✕</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            <button onClick={() => { loadVerifiers(); loadRevokedVerifiers() }} style={{ marginTop: '0.5rem', padding: '0.25rem 0.6rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>↻ Refresh</button>
           </div>
+
+          {/* Revoked Verifiers — populated from VerifierRemoved events */}
+          <div className={`${styles.card} card`}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              🚫 Revoked Verifiers
+              {revokedVerifiers.length > 0 && (
+                <span style={{ padding: '0.1rem 0.5rem', borderRadius: '99px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: '0.72rem', fontWeight: 700 }}>
+                  {revokedVerifiers.length}
+                </span>
+              )}
+            </h3>
+            <p style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: 0, marginBottom: '0.75rem' }}>
+              These addresses have been permanently banned from VERIFIER_ROLE and cannot be re-granted.
+            </p>
+            {revokedLoading
+              ? <div style={{ opacity: 0.5, fontSize: '0.85rem' }}>Fetching from chain events…</div>
+              : revokedVerifiers.length === 0
+                ? <div style={{ opacity: 0.4, fontSize: '0.85rem' }}>No verifiers have been revoked yet.</div>
+                : (
+                  <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                    {revokedVerifiers.map(addr => (
+                      <div key={addr} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '8px', background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.12)', marginBottom: '0.3rem', fontSize: '0.8rem' }}>
+                        <span>🚫</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: '#fca5a5' }}>{getVerifierDisplay(addr)}</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', opacity: 0.45 }}>{addr.slice(0, 12)}…{addr.slice(-8)}</div>
+                        </div>
+                        <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 700 }}>BANNED</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+            }
+          </div>
+
           <div className={styles.adminGrid}>
+
             <div className={`${styles.card} card`}>
               <h3>⚙️ Grant Verifier Role</h3>
               <div className={styles.field}><label>Wallet Address</label><input type="text" placeholder="0x…" value={grantAddr} onChange={(e) => { setGrantAddr(e.target.value); setGrantErr(null) }} /><FieldError msg={grantErr} /></div>
@@ -1099,13 +1292,13 @@ export function AdminPanel({ isConnected, account }) {
 // ZKPanel (unchanged from original)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function ZKPanel({ isConnected }) {
-  const [birthdate,  setBirthdate]  = useState('')
-  const [minAge,     setMinAge]     = useState('18')
+  const [birthdate, setBirthdate] = useState('')
+  const [minAge, setMinAge] = useState('18')
   const [fieldError, setFieldError] = useState(null)
-  const [status,     setStatus]     = useState('idle')
-  const [progress,   setProgress]   = useState('')
-  const [result,     setResult]     = useState(null)
-  const [errorMsg,   setErrorMsg]   = useState(null)
+  const [status, setStatus] = useState('idle')
+  const [progress, setProgress] = useState('')
+  const [result, setResult] = useState(null)
+  const [errorMsg, setErrorMsg] = useState(null)
 
   const { generateAndVerifyAgeProof } = useZKProver()
 
@@ -1115,8 +1308,8 @@ export function ZKPanel({ isConnected }) {
     if (!minAge) return setFieldError('Enter a valid minimum age.')
     if (!isConnected) return setFieldError('Connect wallet first.')
     const birthdate_days = Math.floor(new Date(birthdate).getTime() / 86400000)
-    const current_days   = Math.floor(Date.now() / 86400000)
-    const min_age_days   = Number(minAge) * 365
+    const current_days = Math.floor(Date.now() / 86400000)
+    const min_age_days = Number(minAge) * 365
     if (current_days - birthdate_days < min_age_days)
       return setErrorMsg(`User is below ${minAge} years old. Proof generation blocked.`)
     setStatus('proving')

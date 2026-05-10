@@ -56,30 +56,50 @@ contract Deploy is Script {
 
         vm.stopBroadcast();
 
-        console.log("\n DEPLOYMENT COMPLETE\n");
-        console.log("IdentityRegistry:       ", address(registry));
-        console.log("KYCGatedAuction:        ", address(auction));
-        console.log("AgeVerifier:            ", address(ageV));
-        console.log("CredentialValidVerifier:", address(credV));
-        console.log("NullifierMerkleVerifier:", address(nullV));
-        console.log("CompositeProofVerifier: ", address(compV));
-        console.log("ZKGateway:              ", address(zkGateway));
-        console.log("\n IdentityRegistry now supports:\n");
-        console.log("  - registerIdentity(verifier, documentHash, ipfsCid, filename)");
-        console.log("  - updateIPFSCid(newCid)");
-        console.log("  - getIPFSCid(user)");
-        console.log("  - getPendingForVerifier(verifier)");
-        console.log("\n Hybrid Encryption Flow:\n");
-        console.log("  1. Frontend: Generate random AES key");
-        console.log("  2. Frontend: Encrypt document with AES-256-GCM");
-        console.log("  3. Frontend: Encrypt AES key with verifier's public key (RSA-OAEP)");
-        console.log("  4. Frontend: Upload encrypted package to IPFS (Pinata)");
-        console.log("  5. Frontend: Compute keccak256 hash of original document");
-        console.log("  6. Frontend: Call registerIdentity with CID + hash");
-        console.log("  7. On-chain: Only store document hash + CID, never document/key");
-        console.log("  8. Verifier: Download from IPFS, decrypt with private key");
-        console.log("  9. Verifier: Verify hash matches on-chain");
-        console.log(" 10. Verifier: Call verifyIdentity if document is valid");
+        console.log("\n=== DEPLOYMENT COMPLETE ===");
+        console.log(string.concat("IdentityRegistry:        ", vm.toString(address(registry))));
+        console.log(string.concat("KYCGatedAuction:         ", vm.toString(address(auction))));
+        console.log(string.concat("AgeVerifier:             ", vm.toString(address(ageV))));
+        console.log(string.concat("CredentialValidVerifier: ", vm.toString(address(credV))));
+        console.log(string.concat("NullifierMerkleVerifier: ", vm.toString(address(nullV))));
+        console.log(string.concat("CompositeProofVerifier:  ", vm.toString(address(compV))));
+        console.log(string.concat("ZKGateway:               ", vm.toString(address(zkGateway))));
+        console.log("");
+
+        console.log("\n=== IdentityRegistry API ===\n");
+        console.log("  registerIdentity(verifier, documentHash, ipfsCid, filename)");
+        console.log("  verifyIdentity(user)   -- VERIFIER_ROLE only; status -> Verified");
+        console.log("  revokeIdentity(user)   -- VERIFIER_ROLE only; status -> Revoked");
+        console.log("  addVerifier(addr)      -- ADMIN only; reverts if addr identity is Revoked");
+        console.log("  removeVerifier(addr)   -- ADMIN only");
+        console.log("  isVerified(user)       -- public view; used by KYCGatedAuction.placeBid");
+        console.log("  updateIPFSCid(newCid)  -- user can update CID while Pending");
+        console.log("  getPendingForVerifier  -- returns empty array; index via events off-chain");
+
+        console.log("\n=== Encryption Flow (nacl x25519-xsalsa20-poly1305 + AES-256-GCM) ===\n");
+        console.log("  1. Registrant: fetch verifier MetaMask encryption public key");
+        console.log("  2. Registrant: AES-256-GCM encrypt document locally in browser");
+        console.log("  3. Registrant: wrap AES key in nacl box with verifier x25519 pubkey");
+        console.log("  4. Registrant: upload AES-ciphertext to IPFS; CID + encKey in filename field");
+        console.log("  5. Registrant: compute SHA-256 of original plaintext document");
+        console.log("  6. Registrant: call registerIdentity(verifier, sha256hash, ipfsCid, filename)");
+        console.log("  7. On-chain  : stores ONLY hash + CID; status = Pending");
+        console.log("  8. Verifier  : fetches encrypted blob from IPFS");
+        console.log("  9. Verifier  : MetaMask eth_decrypt decrypts nacl box -> AES key");
+        console.log(" 10. Verifier  : AES-decrypts blob -> original document bytes");
+        console.log(" 11. Verifier  : SHA-256(plaintext) compared to on-chain hash -> MUST match");
+        console.log(" 12. Verifier  : if hash matches, call verifyIdentity(user)");
+
+        console.log("\n=== Edge Cases Enforced ===\n");
+        console.log("  - Unregistered user: isVerified() returns false");
+        console.log("  - Revoking unregistered: reverts IdentityNotRegistered");
+        console.log("  - Non-verifier approve: reverts AccessControlUnauthorizedAccount");
+        console.log("  - Unverified bid in KYCGatedAuction: reverts 'KYC required'");
+        console.log("  - Admin grants verifier to Revoked identity: reverts VerifierIdentityRevoked");
+
+        console.log("\n=== Next Steps After Deploy ===");
+        console.log("  1. Copy addresses above into frontend/src/contracts.js");
+        console.log("  2. Add verifier org names in frontend/src/verifierNames.js");
         console.log("\n");
     }
 }

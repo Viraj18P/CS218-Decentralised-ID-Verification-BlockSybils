@@ -41,8 +41,12 @@ contract IdentityRegistry is ProtocolAccessManaged {
     error VerifierAlreadyAssigned(address verifier);
     error VerifierNotAssigned(address verifier);
     error UnauthorizedVerifier(address verifier);
+    error VerifierIdentityRevoked(address verifier);
+    error VerifierPermanentlyRevoked(address verifier);
 
     mapping(address user => Identity identity) private _identities;
+    /// @notice Permanently banned verifier addresses (cannot be re-granted).
+    mapping(address verifier => bool) private _permanentlyRevokedVerifiers;
 
     event IdentityRegistered(address indexed user, address indexed verifier, bytes32 indexed documentHash, string ipfsCid, string filename, uint64 registeredAt);
     event IdentityDocumentUpdated(address indexed user, bytes32 indexed oldDocumentHash, bytes32 indexed newDocumentHash);
@@ -140,22 +144,36 @@ contract IdentityRegistry is ProtocolAccessManaged {
 
     /// @notice Grants verifier permissions to an address.
     /// @param verifier Address to grant VERIFIER_ROLE.
+    /// @dev Reverts if: already a verifier, identity Revoked, or permanently banned.
     function addVerifier(address verifier) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (verifier == address(0)) revert InvalidUser();
         if (hasRole(VERIFIER_ROLE, verifier)) revert VerifierAlreadyAssigned(verifier);
+        // Edge case: cannot promote an address whose own identity was revoked
+        if (_identities[verifier].status == Status.Revoked) revert VerifierIdentityRevoked(verifier);
+        // Edge case: once a verifier is revoked they cannot be re-granted
+        if (_permanentlyRevokedVerifiers[verifier]) revert VerifierPermanentlyRevoked(verifier);
 
         _grantRole(VERIFIER_ROLE, verifier);
         emit VerifierAdded(verifier, msg.sender);
     }
 
-    /// @notice Removes verifier permissions from an address.
+    /// @notice Removes verifier permissions from an address permanently.
     /// @param verifier Address to revoke VERIFIER_ROLE from.
+    /// @dev Once removed, the address is permanently banned from being re-granted.
     function removeVerifier(address verifier) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (verifier == address(0)) revert InvalidUser();
         if (!hasRole(VERIFIER_ROLE, verifier)) revert VerifierNotAssigned(verifier);
 
+        _permanentlyRevokedVerifiers[verifier] = true;
         _revokeRole(VERIFIER_ROLE, verifier);
         emit VerifierRemoved(verifier, msg.sender);
+    }
+
+    /// @notice Returns true if an address has been permanently banned from VERIFIER_ROLE.
+    /// @param verifier Address to check.
+    /// @return True if permanently revoked.
+    function isVerifierRevoked(address verifier) external view returns (bool) {
+        return _permanentlyRevokedVerifiers[verifier];
     }
 
     /// @notice Returns true only when the user has a verified, non-revoked identity.
@@ -207,11 +225,11 @@ contract IdentityRegistry is ProtocolAccessManaged {
         return _requireRegistered(user).assignedVerifier;
     }
 
-    /// @notice Returns all pending identities for a verifier
-    function getPendingForVerifier(address verifier) external view returns (address[] memory pending) {
-        // Note: This requires iterating through mappings, which is gas-inefficient
-        // In production, use events for off-chain indexing
-        pending = new address[](0); // Placeholder for frontend to fetch via events
+    /// @notice Returns all pending identities for a verifier.
+    /// @dev Mappings cannot be iterated on-chain. Use IdentityRegistered events for off-chain indexing.
+    /// @return pending Empty array — index via events off-chain.
+    function getPendingForVerifier(address /*verifier*/) external pure returns (address[] memory pending) {
+        pending = new address[](0);
     }
 
     /// @notice Update IPFS CID before verification
