@@ -325,6 +325,57 @@ The identity layer is therefore not just a registry; it becomes a reusable trust
 
 ---
 
+## Gas Optimisation
+
+We profiled the contracts using Foundry's gas report and then optimized the most expensive write-heavy functions by removing redundant storage operations and simplifying state checks.
+
+### Functions Optimised
+
+#### 1. `IdentityRegistry.registerIdentity()`
+
+- **Before:** `114,952` gas
+- **After:** `71,576` gas
+- **Reduction:** `37.7%`
+
+**What changed**
+- The baseline version scanned an auxiliary `_registeredUsers` array before every registration.
+- The optimized version checks registration status directly from the `_identities` mapping.
+
+**Why this improved efficiency**
+- Mapping lookups are constant-time and much cheaper than iterating through an array.
+- The optimization also removes the extra `_registeredUsers.push(msg.sender)` storage write.
+- This reduces both computation cost and persistent storage overhead during registration.
+
+#### 2. `KYCGatedAuction.placeBid()`
+
+- **Before:** `142,516` gas
+- **After:** `77,394` gas
+- **Reduction:** `45.7%`
+
+**What changed**
+- The baseline version stored full bid history on-chain using a `BidRecord[]` array.
+- The optimized version removes this redundant history tracking and relies only on:
+  - `highestBidder`
+  - `highestBid`
+  - `pendingReturns`
+  - emitted events
+
+**Why this improved efficiency**
+- Writing every bid into on-chain history adds unnecessary storage cost.
+- Events are much cheaper than persistent storage for audit trails.
+- Since the auction only needs the current highest bid and refundable balances, removing bid-history storage significantly lowers gas usage.
+
+### Overall Takeaway
+
+The largest savings came from removing unnecessary bookkeeping:
+- replacing linear scans with direct mapping checks
+- removing redundant on-chain history storage
+- relying on minimal state plus events wherever possible
+
+These optimisations make the contracts more practical for deployment by reducing execution cost without changing core functionality.
+
+---
+
 ## Future Scope
 
 ### 1. Real Zero-Knowledge Proof Integration
