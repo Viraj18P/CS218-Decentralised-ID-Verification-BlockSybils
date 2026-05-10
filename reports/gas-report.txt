@@ -1,0 +1,341 @@
+No files changed, compilation skipped
+
+Ran 8 tests for test/Coverage.t.sol:CredentialMetadataCoverageTest
+[PASS] testConstructorRevertsOnZeroAddress() (gas: 151699)
+[PASS] testExistsReturnsFalseForUnknown() (gas: 8404)
+[PASS] testExistsReturnsTrueForRegistered() (gas: 8424)
+[PASS] testGetCredentialRevertsOnUnknownId() (gas: 14712)
+[PASS] testGetIssuer() (gas: 13648)
+[PASS] testGetIssuerDID() (gas: 18230)
+[PASS] testGetRevocationIndex() (gas: 13583)
+[PASS] testRegisterCredentialRevertsOnZeroId() (gas: 32821)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 4.43ms (1.45ms CPU time)
+
+Ran 14 tests for test/Coverage.t.sol:DIDCoverageTest
+[PASS] testComputeDidHash() (gas: 7626)
+[PASS] testGetDocument() (gas: 19960)
+[PASS] testGetOwnerByHash() (gas: 15594)
+[PASS] testGetPublicKeyByHash() (gas: 22983)
+[PASS] testGetPublicKeyRevertsOnUnknownDid() (gas: 14089)
+[PASS] testGetUpdatedTimestamp() (gas: 11546)
+[PASS] testIsRegisteredTrueAndFalse() (gas: 18283)
+[PASS] testRegisterDidRevertsOnDuplicate() (gas: 35559)
+[PASS] testRegisterDidRevertsOnEmptyDid() (gas: 32070)
+[PASS] testRegisterDidRevertsOnEmptyKey() (gas: 32349)
+[PASS] testUpdatePublicKeyRevertsIfNotOwner() (gas: 35783)
+[PASS] testUpdatePublicKeyRevertsOnEmptyKey() (gas: 33102)
+[PASS] testUpdatePublicKeyRevertsOnUnknownDid() (gas: 34852)
+[PASS] testUpdatePublicKeySucceeds() (gas: 60818)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 5.55ms (3.91ms CPU time)
+
+Ran 7 tests for test/DIDRegistry.t.sol:DIDRegistryTest
+[PASS] testCannotRegisterTwice() (gas: 108457)
+[PASS] testDifferentUsersIndependent() (gas: 184996)
+[PASS] testRegisterIdentityEmitsEvent() (gas: 85504)
+[PASS] testRegisterIdentityStoresCorrectData() (gas: 93079)
+[PASS] testRegisterWithZeroHashReverts() (gas: 32834)
+[PASS] testRegisteredUserNotVerifiedInitially() (gas: 86518)
+[PASS] testUnregisteredUserNotVerified() (gas: 10722)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 10.93ms (7.74ms CPU time)
+
+Ran 19 tests for test/Coverage.t.sol:IdentityRegistryCoverageTest
+[PASS] testAddVerifier() (gas: 69428)
+[PASS] testAddVerifierRevertsForNonAdmin() (gas: 33284)
+[PASS] testAddVerifierRevertsOnZeroAddress() (gas: 33523)
+[PASS] testConstructorRevertsOnZeroAdmin() (gas: 207947)
+[PASS] testGetDocumentHash() (gas: 86372)
+[PASS] testGetDocumentHashRevertsIfNotRegistered() (gas: 11829)
+[PASS] testGetStatus() (gas: 159578)
+[PASS] testNonVerifierCannotRevokeIdentity() (gas: 162265)
+[PASS] testNonVerifierCannotVerifyIdentity() (gas: 106397)
+[PASS] testRemoveVerifier() (gas: 97020)
+[PASS] testRemoveVerifierRevertsForNonAdmin() (gas: 33293)
+[PASS] testRemoveVerifierRevertsOnZeroAddress() (gas: 33533)
+[PASS] testRevokeChangesStatusToRevoked() (gas: 197714)
+[PASS] testRevokeRevertsIfAlreadyRevoked() (gas: 203286)
+[PASS] testRevokeRevertsIfNotRegistered() (gas: 35824)
+[PASS] testRevokeRevertsOnZeroAddress() (gas: 33508)
+[PASS] testVerifyRevertsIfAlreadyVerified() (gas: 165132)
+[PASS] testVerifyRevertsIfNotRegistered() (gas: 35888)
+[PASS] testVerifyRevertsOnZeroAddress() (gas: 33552)
+Suite result: ok. 19 passed; 0 failed; 0 skipped; finished in 11.74ms (8.56ms CPU time)
+
+Ran 10 tests for test/Coverage.t.sol:KYCAuctionCoverageTest
+[PASS] testConstructorRevertsOnZeroRegistry() (gas: 227771)
+[PASS] testEndAuction() (gas: 145782)
+[PASS] testEndAuctionRevertsIfAlreadyEnded() (gas: 86429)
+[PASS] testOnlyOwnerCanEndAuction() (gas: 32403)
+[PASS] testPlaceBidRevertsAfterAuctionEnded() (gas: 96627)
+[PASS] testWithdrawProceeds() (gas: 204067)
+[PASS] testWithdrawProceedsRevertsIfNotEnded() (gas: 123443)
+[PASS] testWithdrawProceedsRevertsOnZeroRecipient() (gas: 90253)
+[PASS] testWithdrawRefund() (gas: 192543)
+[PASS] testWithdrawRefundRevertsWithNoFunds() (gas: 37839)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 7.10ms (4.84ms CPU time)
+
+Ran 4 tests for test/Coverage.t.sol:RevocationCoverageTest
+[PASS] testCanUnrevokeAndRevokeAgain() (gas: 129670)
+[PASS] testGetBucket() (gas: 59181)
+[PASS] testUnrevokeRevertsIfNotRevoked() (gas: 34142)
+[PASS] testUnrevokeSucceeds() (gas: 91254)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 2.22ms (2.80ms CPU time)
+
+Ran 22 tests for test/zk/ZKGateway.t.sol:ZKGatewayTest
+[PASS] testAdminCanAddMultipleMerkleRoots() (gas: 66070)
+[PASS] testCompositeProofCredentialMismatchReverts() (gas: 45553)
+[PASS] testCompositeProofMerkleRootMismatchReverts() (gas: 47758)
+[PASS] testCompositeProofNullifierReuseReverts() (gas: 128805)
+[PASS] testCompositeProofReturnsFalseWhenVerifierRejects() (gas: 86836)
+[PASS] testCompositeProofSignalCountReverts() (gas: 42613)
+[PASS] testCompositeProofSuccessConsumesNullifier() (gas: 88380)
+[PASS] testConstructorRevertsOnZeroAddress() (gas: 181704)
+[PASS] testInvalidMerkleRootReverts() (gas: 41664)
+[PASS] testIsNullifierUsedReturnsFalseInitially() (gas: 8413)
+[PASS] testNullifierNotConsumedWhenProofFails() (gas: 79071)
+[PASS] testNullifierReuseReverts() (gas: 113538)
+[PASS] testNullifierSignalCountRevertsOnWrongCount() (gas: 38974)
+[PASS] testOnlyAdminCanAddMerkleRoot() (gas: 31127)
+[PASS] testVerifyAgeProofReturnsFalseWhenVerifierRejects() (gas: 47816)
+[PASS] testVerifyAgeProofReturnsTrueOnValidProof() (gas: 25642)
+[PASS] testVerifyAgeProofRevertsOnWrongSignalCount() (gas: 16286)
+[PASS] testVerifyAndConsumeNullifierSuccess() (gas: 78743)
+[PASS] testVerifyCredentialProofReturnsFalseWhenVerifierRejects() (gas: 48701)
+[PASS] testVerifyCredentialProofRevertsOnCredentialIdMismatch() (gas: 17290)
+[PASS] testVerifyCredentialProofRevertsOnWrongSignalCount() (gas: 16827)
+[PASS] testVerifyCredentialProofSuccess() (gas: 26503)
+Suite result: ok. 22 passed; 0 failed; 0 skipped; finished in 13.29ms (9.69ms CPU time)
+
+Ran 7 tests for test/RevocationRegistry.t.sol:RevocationRegistryTest
+[PASS] testFuzz_Revoke(uint256) (runs: 256, μ: 59553, ~: 59488)
+[PASS] testIsRevokedReturnsFalseInitially() (gas: 8952)
+[PASS] testRevokeMarksCredentialAsRevoked() (gas: 59139)
+[PASS] testRevokeMultipleIndexes() (gas: 137840)
+[PASS] testRevokeSameIndexTwice() (gas: 85805)
+[PASS] testUnauthorizedUserCanRevokeOrNot() (gas: 59139)
+[PASS] testUnknownIndexNotRevoked() (gas: 8997)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 44.03ms (44.27ms CPU time)
+
+Ran 10 tests for test/CredentialVerifier.t.sol:CredentialVerifierTest
+[PASS] testCannotRegisterDuplicateCredentialId() (gas: 35873)
+[PASS] testCredentialRegistrationRequiresDidOwnership() (gas: 43325)
+[PASS] testFuzz_PublicSignals(uint256) (runs: 256, μ: 44341, ~: 44341)
+[PASS] testResolveCredentialContextReturnsCorrectData() (gas: 47242)
+[PASS] testValidateCredentialReturnsFalseWhenProofFails() (gas: 66324)
+[PASS] testValidateCredentialReturnsFalseWhenRevoked() (gas: 86509)
+[PASS] testValidateCredentialReturnsTrueForValidCredential() (gas: 44768)
+[PASS] testValidateCredentialRevertsForUnknownCredential() (gas: 21556)
+[PASS] testVerifyPresentationOrRevertFailsOnInvalidProof() (gas: 69960)
+[PASS] testVerifyPresentationOrRevertFailsWhenRevoked() (gas: 88363)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 83.54ms (82.86ms CPU time)
+
+Ran 8 tests for test/Integration.t.sol:IntegrationTest
+[PASS] testBidMustBeHigherThanPrevious() (gas: 270802)
+[PASS] testFuzz_Bidding(uint256) (runs: 256, μ: 227294, ~: 227294)
+[PASS] testHigherBidReplacesPreviousBidder() (gas: 434157)
+[PASS] testMultipleUsersBiddingFlow() (gas: 505540)
+[PASS] testRevokedUserCannotBid() (gas: 221139)
+[PASS] testUnverifiedUserCannotBid() (gas: 50687)
+[PASS] testVerifiedUserCanBid() (gas: 234307)
+[PASS] testZeroBidReverts() (gas: 180895)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 94.11ms (95.33ms CPU time)
+
+╭-----------------------------------------------+-----------------+-------+--------+-------+---------╮
+| contracts/zk/ZKGateway.sol:ZKGateway Contract |                 |       |        |       |         |
++====================================================================================================+
+| Deployment Cost                               | Deployment Size |       |        |       |         |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| 1068537                                       | 5789            |       |        |       |         |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                               |                 |       |        |       |         |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                 | Min             | Avg   | Median | Max   | # Calls |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| addMerkleRoot                                 | 21751           | 44508 | 45498  | 45498 | 24      |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| isMerkleRootValid                             | 2921            | 2921  | 2921   | 2921  | 2       |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| isNullifierUsed                               | 2833            | 2833  | 2833   | 2833  | 5       |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| verifyAgeProof                                | 985             | 9567  | 13859  | 13859 | 3       |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| verifyAndConsumeNullifier                     | 23673           | 41012 | 34915  | 63195 | 6       |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| verifyCompositeProof                          | 25252           | 43152 | 32044  | 70375 | 7       |
+|-----------------------------------------------+-----------------+-------+--------+-------+---------|
+| verifyCredentialProof                         | 1134            | 7745  | 7765   | 14318 | 4       |
+╰-----------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭------------------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| mocks/MockGroth16Verifier.sol:MockGroth16Verifier Contract |                 |       |        |       |         |
++=================================================================================================================+
+| Deployment Cost                                            | Deployment Size |       |        |       |         |
+|------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 346968                                                     | 1310            |       |        |       |         |
+|------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                            |                 |       |        |       |         |
+|------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                              | Min             | Avg   | Median | Max   | # Calls |
+|------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| setShouldVerify                                            | 21843           | 21843 | 21843  | 21843 | 6       |
+|------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| verifyProof                                                | 8066            | 8102  | 8066   | 10101 | 269     |
+╰------------------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭------------------------------------------------------------------------+-----------------+-------+--------+--------+---------╮
+| src/CredentialMetadataRegistry.sol:CredentialMetadataRegistry Contract |                 |       |        |        |         |
++==============================================================================================================================+
+| Deployment Cost                                                        | Deployment Size |       |        |        |         |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| 844228                                                                 | 4054            |       |        |        |         |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+|                                                                        |                 |       |        |        |         |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| Function Name                                                          | Min             | Avg   | Median | Max    | # Calls |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| exists                                                                 | 2882            | 2882  | 2882   | 2882   | 2       |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| getCredential                                                          | 2899            | 8478  | 8521   | 8521   | 264     |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| getIssuer                                                              | 8019            | 8019  | 8019   | 8019   | 1       |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| getIssuerDID                                                           | 8290            | 8290  | 8290   | 8290   | 1       |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| getRevocationIndex                                                     | 8014            | 8014  | 8014   | 8014   | 1       |
+|------------------------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| registerCredential                                                     | 22847           | 92924 | 100519 | 100519 | 29      |
+╰------------------------------------------------------------------------+-----------------+-------+--------+--------+---------╯
+
+╭--------------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| src/CredentialVerifier.sol:CredentialVerifier Contract |                 |       |        |       |         |
++=============================================================================================================+
+| Deployment Cost                                        | Deployment Size |       |        |       |         |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 1075910                                                | 5680            |       |        |       |         |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                        |                 |       |        |       |         |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                          | Min             | Avg   | Median | Max   | # Calls |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| resolveCredentialContext                               | 31669           | 31669 | 31669  | 31669 | 1       |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| validateCredential                                     | 6527            | 32561 | 32709  | 32941 | 260     |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| verifyPresentationOrRevert                             | 20468           | 26596 | 26596  | 32724 | 2       |
+╰--------------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭------------------------------------------+-----------------+-------+--------+-------+---------╮
+| src/DIDRegistry.sol:DIDRegistry Contract |                 |       |        |       |         |
++===============================================================================================+
+| Deployment Cost                          | Deployment Size |       |        |       |         |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| 1069893                                  | 4743            |       |        |       |         |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                          |                 |       |        |       |         |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                            | Min             | Avg   | Median | Max   | # Calls |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| computeDidHash                           | 1114            | 1114  | 1114   | 1114  | 3       |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| getDocument                              | 9011            | 9011  | 9011   | 9011  | 1       |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| getOwner                                 | 3573            | 3573  | 3573   | 3573  | 27      |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| getOwnerByHash                           | 3118            | 3118  | 3118   | 3118  | 1       |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| getPublicKey                             | 3405            | 5481  | 6519   | 6519  | 3       |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| getPublicKeyByHash                       | 6067            | 6067  | 6067   | 6067  | 1       |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| getUpdatedTimestamp                      | 5557            | 5557  | 5557   | 5557  | 1       |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| isRegistered                             | 3413            | 3413  | 3413   | 3413  | 2       |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| registerDid                              | 22705           | 89896 | 94843  | 94843 | 43      |
+|------------------------------------------+-----------------+-------+--------+-------+---------|
+| updatePublicKey                          | 23209           | 28556 | 25819  | 39376 | 4       |
+╰------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭----------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| src/IdentityRegistry.sol:IdentityRegistry Contract |                 |       |        |       |         |
++=========================================================================================================+
+| Deployment Cost                                    | Deployment Size |       |        |       |         |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 1591369                                            | 7775            |       |        |       |         |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                    |                 |       |        |       |         |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                      | Min             | Avg   | Median | Max   | # Calls |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| VERIFIER_ROLE                                      | 435             | 435   | 435    | 435   | 2       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| addVerifier                                        | 24440           | 38804 | 38806  | 53165 | 4       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getDocumentHash                                    | 3135            | 4142  | 4142   | 5150  | 2       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getIdentity                                        | 8469            | 8469  | 8469   | 8469  | 3       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getStatus                                          | 3031            | 3031  | 3031   | 3031  | 5       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| hasRole                                            | 3167            | 3167  | 3167   | 3167  | 2       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| isVerified                                         | 2956            | 2956  | 2956   | 2956  | 275     |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| registerIdentity                                   | 21971           | 71576 | 71902  | 71902 | 299     |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| removeVerifier                                     | 24473           | 26751 | 24480  | 31300 | 3       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| revokeIdentity                                     | 24470           | 30512 | 27023  | 36932 | 7       |
+|----------------------------------------------------+-----------------+-------+--------+-------+---------|
+| verifyIdentity                                     | 24513           | 54273 | 54668  | 54668 | 293     |
+╰----------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭--------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| src/KYCGatedAuction.sol:KYCGatedAuction Contract |                 |       |        |       |         |
++=======================================================================================================+
+| Deployment Cost                                  | Deployment Size |       |        |       |         |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 1175639                                          | 6224            |       |        |       |         |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                  |                 |       |        |       |         |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                    | Min             | Avg   | Median | Max   | # Calls |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| endAuction                                       | 23837           | 44054 | 51706  | 51706 | 7       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| ended                                            | 2489            | 2489  | 2489   | 2489  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| highestBid                                       | 2469            | 2469  | 2469   | 2469  | 259     |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| highestBidder                                    | 2530            | 2530  | 2530   | 2530  | 3       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| pendingReturns                                   | 2869            | 2869  | 2869   | 2869  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| placeBid                                         | 28982           | 77394 | 78350  | 78350 | 273     |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| withdrawProceeds                                 | 29601           | 42240 | 31777  | 65342 | 3       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| withdrawRefund                                   | 29005           | 31013 | 31013  | 33021 | 2       |
+╰--------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭--------------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| src/RevocationRegistry.sol:RevocationRegistry Contract |                 |       |        |       |         |
++=============================================================================================================+
+| Deployment Cost                                        | Deployment Size |       |        |       |         |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 390763                                                 | 1593            |       |        |       |         |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                        |                 |       |        |       |         |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                          | Min             | Avg   | Median | Max   | # Calls |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getBucket                                              | 3076            | 3076  | 3076   | 3076  | 1       |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| isRevoked                                              | 3217            | 3217  | 3217   | 3217  | 529     |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| revoke                                                 | 24313           | 46404 | 46543  | 46867 | 269     |
+|--------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| unrevoke                                               | 24379           | 24569 | 24664  | 24664 | 3       |
+╰--------------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+
+Ran 10 test suites in 358.23ms (276.94ms CPU time): 109 tests passed, 0 failed, 0 skipped (109 total tests)
