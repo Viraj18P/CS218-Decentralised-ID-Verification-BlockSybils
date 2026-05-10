@@ -343,6 +343,8 @@ Further work can include smart contract audits, advanced encryption mechanisms, 
 
 ### Demo Video
 
+The below video shows, all flow, working and edge cases:
+
 https://drive.google.com/file/d/1037s_BzbCpEXsoYqgrSlIuYVnWNrXqdq/view?usp=sharing
 
 ---
