@@ -1,34 +1,343 @@
-# CS218 — Decentralised Identity Verification
+# CS218 - Decentralised Identity Verification
 ### Team BlockSybils
 
 | Name | Roll Number |
-|------|-------------|
+|---|---|
 | Viraj Samir Patel | 240002079 |
-| Subhanshu Kumar | Roll No. |
-| Yash Pankaj Choudhary | Roll No. |
-| Akarsh Raj | Roll No. |
+| Subhanshu Kumar | 240021019 |
+| Yash Pankaj Choudhary | 240008038 |
+| Akarsh Raj | 240051003 |
 | Khaled M. Abdul Qader | 240001041 |
-| Shlok Parikh | Roll No. |
+| Shlok Parikh | 240008027 |
 
 ---
 
 ## Project Overview
 
-A fully on-chain decentralised identity verification system built on Ethereum (Sepolia testnet). Users register a keccak256 hash of their identity document. Authorised verifiers approve or revoke identities. A KYC-gated auction demonstrates composability. Documents are AES-256-GCM encrypted in the browser and stored on IPFS — only the assigned verifier can decrypt via MetaMask. Zero-knowledge age proofs are generated in-browser using snarkjs and verified on-chain.
+This project implements a privacy-preserving decentralised identity verification system on Ethereum. Instead of storing raw identity documents on-chain, the system stores only trust-critical information such as document hashes, verification state, issuer metadata, public keys, and revocation status.
 
-### Architecture
+The core design principle is:
 
+> **Store only the minimum required data on-chain, keep sensitive identity material off-chain, and make trust decisions auditable, revocable, and composable.**
+
+---
+
+## Problem Statement
+
+Traditional identity verification systems suffer from three major issues:
+
+- users are forced to overshare personal documents
+- centralised databases create single points of failure
+- revocation and trust updates are difficult to manage transparently
+
+This project addresses those issues by:
+
+- storing only hashes and verification state on-chain
+- separating identity state from raw document handling
+- using role-based access control for verifier and admin actions
+- supporting revocation and extensible credential validation
+
+---
+
+## Key Features
+
+- Privacy-preserving identity storage using `keccak256` hashes instead of raw documents
+- Verifier-managed identity lifecycle with `Pending`, `Verified`, and `Revoked` states
+- OpenZeppelin-based role management and safety controls
+- DID support for issuer identity and public key resolution
+- Bitmap-based revocation for gas-efficient credential invalidation
+- Credential metadata mapping from credential ID to issuer and revocation index
+- Groth16-ready verifier wrapper for future zero-knowledge proof integration
+- Modular contract architecture for easier testing, auditing, and extension
+- Foundry-based test coverage for registration, authorization, revocation, and verifier logic
+
+---
+
+### High-Level Flows
+
+#### A. Identity Verification Flow
+
+1. A user hashes an identity document off-chain.
+2. The user registers only the hash on-chain.
+3. The identity enters the `Pending` state.
+4. An authorised verifier checks the underlying off-chain document.
+5. The verifier marks the identity as `Verified`.
+6. If trust later changes, the verifier can revoke the identity.
+
+#### B. DID and Credential Flow
+
+1. An issuer registers a DID and public key.
+2. A credential ID is linked to the issuer and a revocation index.
+3. The issuer manages revocation bits inside a bitmap registry.
+4. A verifier or application resolves credential context and validates whether the credential is still active.
+
+---
+
+## Repository Structure
+
+```text
+CS218-Decentralised-ID-Verification-BlockSybils/
+|- src/
+|  |- IdentityRegistry.sol
+|  |- DIDRegistry.sol
+|  |- RevocationRegistry.sol
+|  |- CredentialMetadataRegistry.sol
+|  |- CredentialVerifier.sol
+|  |- access/
+|  |  |- ProtocolAccessManaged.sol
+|  |- interfaces/
+|  |  |- IGroth16Verifier.sol
+|  |- mocks/
+|     |- MockGroth16Verifier.sol
+|- test/
+|  |- IdentityRegistry.t.sol
+|  |- DIDRegistry.t.sol
+|  |- RevocationRegistry.t.sol
+|  |- CredentialVerifier.t.sol
+|- lib/
+|  |- forge-std/
+|- foundry.toml
+|- README.md
 ```
-Browser (React + ethers.js v6)
-    │
-    ├── IdentityRegistry.sol     — register, verify, revoke identities
-    ├── KYCGatedAuction.sol      — only verified wallets can bid
-    ├── ZKGateway.sol            — verifies Groth16 age proofs on-chain
-    ├── DIDRegistry.sol          — decentralised identifier registry
-    ├── RevocationRegistry.sol   — bitmap-packed credential revocation
-    ├── CredentialMetadataRegistry.sol
-    └── CredentialVerifier.sol
-```
+
+---
+
+## Use Cases and System Flows
+
+This project is centered on a decentralised identity verification framework. The main objective is to build a system where identity status, issuer trust, and revocation can be managed on-chain without exposing sensitive raw documents.
+
+The KYC-gated auction is a secondary demonstration of how the identity layer can be reused by another smart contract.
+
+### 1. Identity Registration Without Storing Raw Documents
+
+The system allows a user to register their identity on-chain without uploading the original document.
+
+How it works:
+- the user prepares an identity document off-chain
+- the document is hashed using `keccak256`
+- only the hash is stored on-chain
+- the user’s identity enters the `Pending` state
+
+Why this matters:
+- sensitive personal data is not exposed on-chain
+- the blockchain acts as a tamper-resistant proof anchor
+- privacy is preserved while keeping identity state auditable
+
+### 2. Authorised Identity Verification
+
+Once a user registers a document hash, authorised verifiers can validate the underlying off-chain document and approve the identity.
+
+How it works:
+- the verifier reviews the user’s original document off-chain
+- only wallets with verifier permissions can approve identities
+- the identity status changes from `Pending` to `Verified`
+
+Why this matters:
+- verification is restricted to trusted actors
+- trust decisions become transparent and auditable
+- the system reflects a realistic verification workflow
+
+### 3. Identity Revocation
+
+An identity should not remain trusted forever if the underlying conditions change.
+
+How it works:
+- an authorised verifier can revoke a previously verified identity
+- the identity status changes from `Verified` to `Revoked`
+
+Why this matters:
+- invalid, compromised, or outdated identities can be disabled
+- other applications can immediately detect revoked users
+- the system supports dynamic trust instead of one-time approval only
+
+### 4. Efficient Credential Revocation Using Bitmaps
+
+The system supports scalable revocation through bitmap-based storage.
+
+How it works:
+- revocation state is stored in packed `uint256` buckets
+- each bit represents whether a credential is revoked
+- issuers maintain their own revocation namespace
+
+Why this matters:
+- much more gas-efficient than storing one boolean per credential
+- suitable for larger credential systems
+- revocation checks remain simple and fast
+
+### 5. Groth16-Ready Verification Flow
+
+The architecture is designed to support proof-based validation workflows.
+
+How it works:
+- credential state is resolved using issuer DID, public key, and revocation metadata
+- the verifier wrapper can integrate with a Groth16 verifier contract
+- proof validity and credential status can be checked together
+
+Why this matters:
+- the project is extensible toward privacy-preserving credential proofs
+- users can eventually prove claims without revealing full identity documents
+- the design supports future zero-knowledge workflows cleanly
+
+### 6. Practical Add-On: KYC-Gated Auction
+
+A KYC-gated auction is included as an application-layer example built on top of the identity system.
+
+How it works:
+- the auction checks whether a wallet is verified before allowing bids
+- only verified users can participate
+
+Why this matters:
+- demonstrates composability of the identity layer
+- shows how identity verification can enforce real business rules
+- proves the contracts are usable beyond an isolated registry demo
+
+---
+
+## Detailed Verification Flow
+
+This section describes the exact end-to-end flow followed by the application from the moment a user opens the platform to the point where a verifier approves or revokes the identity.
+
+### 1. User Connects Wallet
+
+- the user opens the frontend and connects MetaMask
+- the connected wallet becomes the identity owner address
+- the application checks the currently selected network, typically Sepolia
+
+This step ensures that identity registration and later verification actions are tied to a real wallet address.
+
+### 2. User Selects a Verifier
+
+- the frontend shows the list of available authorised verifiers
+- the user selects the verifier who should review the submitted identity document
+- this selected verifier becomes the intended off-chain reviewer of the uploaded material
+
+This matters because the document should be readable only by the verifier responsible for checking it.
+
+### 3. User Uploads Identity Document
+
+- the user uploads the identity file through the browser
+- the file never goes directly on-chain
+- the frontend prepares the file for both hashing and secure off-chain storage
+
+### 4. Document Hashing Happens in the Client
+
+- the uploaded document is hashed in the browser using `keccak256`
+- this hash acts as the on-chain fingerprint of the document
+- if the document changes, the hash changes as well
+
+Only this hash is committed on-chain, preserving privacy while keeping a tamper-evident reference.
+
+### 5. Document Is Encrypted for the Selected Verifier
+
+- before storage, the original document is encrypted off-chain
+- the encryption is tied to the selected verifier so that only that verifier can later access the contents
+- the user does not publish the readable raw document to the blockchain
+
+This gives the verifier access to the real file while still protecting the document from public exposure.
+
+### 6. Encrypted Document Goes to IPFS via Pinata
+
+- the encrypted file is uploaded to IPFS using Pinata
+- Pinata returns a content identifier or gateway link for the encrypted document
+- the encrypted payload remains off-chain, while the blockchain stores only the verification-relevant state
+
+This keeps storage costs low and avoids putting sensitive document content into public contract storage.
+
+### 7. User Registers Identity On-Chain
+
+- after hashing and encrypted upload, the user calls the identity registration flow
+- the on-chain registry stores the document hash against the user wallet
+- the identity status becomes `Pending`
+
+At this point:
+- the blockchain knows the user has submitted a document fingerprint
+- the verifier can later compare the reviewed document against the registered hash
+
+### 8. Verifier Accesses the Submitted Document
+
+- the verifier connects with MetaMask
+- the verifier retrieves the encrypted document reference from the application flow
+- the verifier decrypts the document off-chain and reviews its contents
+
+This verification step is intentionally off-chain, because raw identity documents should not be exposed publicly on the blockchain.
+
+### 9. Verifier Confirms Authenticity
+
+- the verifier checks whether the submitted document is valid
+- the verifier can also compare the reviewed file against the user’s registered hash
+- if everything matches, the verifier approves the user on-chain
+
+Once this transaction succeeds:
+- the identity moves from `Pending` to `Verified`
+- the verifier address and verification timestamp are recorded
+
+### 10. Verifier Can Revoke Later If Needed
+
+- if the identity later becomes invalid, expired, fraudulent, or compromised, the verifier can revoke it
+- the status changes from `Verified` to `Revoked`
+- any dependent application immediately sees the updated status
+
+This makes trust dynamic instead of permanent.
+
+### 11. Other Contracts Reuse the Verification State
+
+- other contracts can query whether a wallet is currently verified
+- this is where application-layer use cases like KYC-gated participation become possible
+
+The identity layer is therefore not just a registry; it becomes a reusable trust primitive for other decentralised applications.
+
+---
+
+## End-to-End Flows
+
+### User Flow
+
+1. The user connects MetaMask.
+2. The user selects a verifier.
+3. The user uploads an identity document in the frontend.
+4. The document is hashed in the browser using `keccak256`.
+5. The original file is encrypted for the selected verifier.
+6. The encrypted file is uploaded to IPFS through Pinata.
+7. The document hash is registered on-chain.
+8. The identity becomes `Pending`.
+9. After verifier approval, the identity becomes `Verified`.
+10. If trust changes later, the identity can be `Revoked`.
+
+### Verifier Flow
+
+1. The verifier connects MetaMask.
+2. The verifier accesses the encrypted document reference off-chain.
+3. The verifier decrypts and reviews the submitted identity document.
+4. The verifier approves valid identities by calling the on-chain verification flow.
+5. The verifier can later revoke identities if necessary.
+
+### Admin Flow
+
+1. The admin manages verifier permissions.
+2. The admin can add trusted verifiers.
+3. The admin can remove verifiers who are no longer authorised.
+
+### Issuer Flow
+
+1. The issuer registers a DID and public key.
+2. The issuer links credentials to metadata on-chain.
+3. The issuer manages credential revocation efficiently using bitmaps.
+
+---
+
+## Future Scope
+
+### 1. Real Zero-Knowledge Proof Integration
+Future versions can integrate production-grade zero-knowledge proof systems so users can prove identity claims without revealing sensitive personal documents.
+
+### 2. Selective Disclosure of Credentials
+The system can be extended to support selective disclosure, allowing users to reveal only the specific information required by an application.
+
+### 3. Cross-Chain Identity Portability
+Future implementations can support identity portability across multiple blockchain networks and decentralised applications.
+
+### 4. Production-Grade Security and Deployment
+Further work can include smart contract audits, advanced encryption mechanisms, monitoring systems, and scalable deployment infrastructure for real-world usage.
 
 ---
 
@@ -36,12 +345,15 @@ Browser (React + ethers.js v6)
 
 Install these before starting:
 
-- [Foundry](https://getfoundry.sh/) — Solidity compiler and test framework
+- [Foundry](https://getfoundry.sh/) - Solidity compiler and test framework
 - [Node.js](https://nodejs.org/) v18 or higher
 - [Git](https://git-scm.com/)
 - [MetaMask](https://metamask.io/) browser extension
-- A free [Alchemy](https://alchemy.com/) account — for Sepolia RPC URL
-- A free [Pinata](https://pinata.cloud/) account — for IPFS document storage
+- a Sepolia RPC provider such as [Alchemy](https://alchemy.com/)
+
+If your frontend uses document upload or IPFS storage, you may also need:
+
+- [Pinata](https://pinata.cloud/) or another IPFS pinning service
 
 ---
 
@@ -53,19 +365,14 @@ git clone https://github.com/Viraj18P/CS218-Decentralised-ID-Verification-BlockS
 cd CS218-Decentralised-ID-Verification-BlockSybils
 ```
 
-### Install Foundry dependencies (OpenZeppelin, forge-std)
+### Install Foundry dependencies
 ### Directory: project root
 ```bash
 forge install
 ```
 
-### Install circomlib (needed for ZK circuit compilation)
-### Directory: project root
-```bash
-npm install circomlib
-```
+If your repository includes a frontend:
 
-### Install frontend dependencies
 ### Directory: frontend/
 ```bash
 cd frontend
@@ -79,23 +386,26 @@ cd ..
 
 ### Directory: project root
 
-Create a `.env` file in the project root:
+Create a `.env` file:
+
 ```bash
 touch .env
 ```
 
-Add these lines to `.env` (replace with your real values):
-```
+Add your environment variables:
+
+```env
 SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
-PRIVATE_KEY=0xYOUR_METAMASK_PRIVATE_KEY
+PRIVATE_KEY=0xYOUR_PRIVATE_KEY
 ```
 
 Load the environment variables:
+
 ```bash
 source .env
 ```
 
-> **Security:** Never commit `.env` to GitHub. It is already listed in `.gitignore`.
+> Security: never commit `.env` to GitHub.
 
 ---
 
@@ -106,7 +416,11 @@ source .env
 forge build
 ```
 
-Expected output: `Compiler run successful`
+Expected output:
+
+```text
+Compiler run successful
+```
 
 ---
 
@@ -114,22 +428,22 @@ Expected output: `Compiler run successful`
 
 ### Directory: project root
 
-Run all tests with verbose output:
+Run all tests:
+
 ```bash
 forge test -vv
 ```
 
-Run only the rubric-required tests:
+Run specific test suites:
+
 ```bash
-forge test --match-contract RubricTests -vv
+forge test --match-contract IdentityRegistryTest -vv
+forge test --match-contract DIDRegistryTest -vv
+forge test --match-contract RevocationRegistryTest -vv
+forge test --match-contract CredentialVerifierTest -vv
 ```
 
-Run only integration tests:
-```bash
-forge test --match-contract Integration -vv
-```
-
-Expected result: all tests pass, 0 failed.
+Expected result: all tests pass, `0 failed`.
 
 ---
 
@@ -140,8 +454,6 @@ Expected result: all tests pass, 0 failed.
 forge coverage --report summary
 ```
 
-Expected result: >= 98% line coverage across all contracts.
-
 ---
 
 ## 6. Gas Report
@@ -151,65 +463,22 @@ Expected result: >= 98% line coverage across all contracts.
 forge test --gas-report
 ```
 
-Paste the output table into your `report.pdf` for the gas optimisation section.
+This is useful for documenting bitmap revocation savings and overall contract efficiency.
 
 ---
 
-## 7. ZK Circuit Setup (run once)
+## 7. Deploy Contracts
 
-This compiles the age verification circuit and generates the proving/verification keys.
-Run these commands inside WSL (Windows Subsystem for Linux).
-
-### Open WSL:
-```bash
-wsl
-```
-
-### Inside WSL — Directory: /mnt/c/Users/YOUR_USERNAME/Blockchain/CS218-Decentralised-ID-Verification-BlockSybils
-```bash
-# Navigate to project
-cd /mnt/c/Users/YOUR_USERNAME/Blockchain/CS218-Decentralised-ID-Verification-BlockSybils
-
-# Install snarkjs globally
-npm install -g snarkjs
-
-# Compile the circuit
-mkdir -p build/AgeVerifier
-circom2 circuits/AgeVerifier.circom --r1cs --wasm --sym -l node_modules -o build/AgeVerifier
-
-# Powers of Tau ceremony (trusted setup)
-mkdir -p build/ptau
-snarkjs powersoftau new bn128 12 build/ptau/pot12_0000.ptau -v
-snarkjs powersoftau contribute build/ptau/pot12_0000.ptau build/ptau/pot12_0001.ptau --name="BlockSybils" -e="blocksybils123"
-snarkjs powersoftau prepare phase2 build/ptau/pot12_0001.ptau build/ptau/pot12_final.ptau -v
-
-# Circuit-specific setup
-snarkjs groth16 setup build/AgeVerifier/AgeVerifier.r1cs build/ptau/pot12_final.ptau build/AgeVerifier/AgeVerifier_0000.zkey
-snarkjs zkey contribute build/AgeVerifier/AgeVerifier_0000.zkey build/AgeVerifier/AgeVerifier_final.zkey --name="dev" -e="entropy123"
-
-# Export verification key and Solidity verifier
-snarkjs zkey export verificationkey build/AgeVerifier/AgeVerifier_final.zkey build/AgeVerifier/verification_key.json
-snarkjs zkey export solidityverifier build/AgeVerifier/AgeVerifier_final.zkey contracts/verifiers/AgeVerifier.sol
-
-# Copy WASM and zkey to frontend public folder
-mkdir -p frontend/public/zk/AgeVerifier
-cp build/AgeVerifier/AgeVerifier_js/AgeVerifier.wasm frontend/public/zk/AgeVerifier/
-cp build/AgeVerifier/AgeVerifier_final.zkey frontend/public/zk/AgeVerifier/
-cp build/AgeVerifier/verification_key.json frontend/public/zk/AgeVerifier/
-```
-
----
-
-## 8. Deploy Contracts to Sepolia
-
-### Directory: project root (Git Bash or WSL)
+### Directory: project root
 
 Make sure `.env` is loaded first:
+
 ```bash
 source .env
 ```
 
-Deploy all contracts:
+If your repository includes a deployment script, run:
+
 ```bash
 forge script scripts/Deploy.s.sol:Deploy \
   --rpc-url $SEPOLIA_RPC_URL \
@@ -217,142 +486,60 @@ forge script scripts/Deploy.s.sol:Deploy \
   --broadcast
 ```
 
-The terminal will print deployed addresses like:
-```
-IdentityRegistry:          0xB6A37b4C7688B31E51edc686141D7Dc0Fc6A5520
-KYCGatedAuction:           0x380B130A2a8D234b325188Bd342175a98566051a
-ZKGateway:                 0x1fa046e287d0637A8F4C3a701Fe3aFA14f5FcFEd
-DIDRegistry:               0xE2CD68e9F424BcBcA5Be209B5F0A045D37D6b508
-RevocationRegistry:        0x4Ed8Eef7eE228aA254d34A2a29b73703aAa12D0C
-CredentialMetadataRegistry:0x86CfD7157bABb65A3Ee979c64f067a600d105De4
-CredentialVerifier:        0xa2955E78f0067FEC660c31Ba2aeed57fAd7DD897
-```
+If deployment scripts are not yet included, deploy the contracts manually or add a deployment script before public release.
 
 ---
 
-## 9. Update Frontend Contract Addresses
+## 8. Local Frontend Setup
 
-### Directory: frontend/src/
-
-After deployment open `frontend/src/contracts.js` and paste your addresses:
-```js
-export const CONTRACTS = {
-  IDENTITY_REGISTRY:            '0xYour_IdentityRegistry_Address',
-  KYC_AUCTION:                  '0xYour_KYCGatedAuction_Address',
-  ZK_GATEWAY:                   '0xYour_ZKGateway_Address',
-  DID_REGISTRY:                 '0xYour_DIDRegistry_Address',
-  REVOCATION_REGISTRY:          '0xYour_RevocationRegistry_Address',
-  CREDENTIAL_METADATA_REGISTRY: '0xYour_CredentialMetadataRegistry_Address',
-  CREDENTIAL_VERIFIER:          '0xYour_CredentialVerifier_Address',
-}
-
-export const REQUIRED_CHAIN_ID = 11155111
-export const CHAIN_NAME        = 'Sepolia Testnet'
-```
-
----
-
-## 10. Configure Pinata (IPFS)
-
-Sign up free at [pinata.cloud](https://pinata.cloud) and create an API key.
-
-### Directory: frontend/
-
-Create `frontend/.env`:
-```
-VITE_PINATA_API_KEY=your_pinata_api_key
-VITE_PINATA_SECRET_API_KEY=your_pinata_secret_key
-```
-
----
-
-## 11. Run the Frontend
+If your repository includes a frontend:
 
 ### Directory: frontend/
 ```bash
-cd frontend
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+For production:
 
-Make sure MetaMask is set to **Sepolia test network**.
-
----
-
-## 12. Build for Production
-
-### Directory: frontend/
 ```bash
 npm run build
-```
-
-Built files go to `frontend/dist/`.
-
-Preview the production build:
-```bash
 npm run preview
 ```
 
 ---
 
-## 13. Deploy Frontend to Vercel (optional)
-
-```bash
-# Push all changes to GitHub first
-git add .
-git commit -m "Final submission"
-git push
-```
-
-Then go to [vercel.com](https://vercel.com):
-1. Import your GitHub repo
-2. Set Root Directory to `frontend`
-3. Framework: Vite
-4. Add environment variables: `VITE_PINATA_API_KEY` and `VITE_PINATA_SECRET_API_KEY`
-5. Click Deploy
-
----
-
-## Contract Addresses (Sepolia Testnet)
-
-| Contract | Address |
-|---|---|
-| IdentityRegistry | 0xB6A37b4C7688B31E51edc686141D7Dc0Fc6A5520 |
-| KYCGatedAuction | 0x380B130A2a8D234b325188Bd342175a98566051a |
-| ZKGateway | 0x1fa046e287d0637A8F4C3a701Fe3aFA14f5FcFEd |
-| DIDRegistry | 0xE2CD68e9F424BcBcA5Be209B5F0A045D37D6b508 |
-| RevocationRegistry | 0x4Ed8Eef7eE228aA254d34A2a29b73703aAa12D0C |
-| CredentialMetadataRegistry | 0x86CfD7157bABb65A3Ee979c64f067a600d105De4 |
-| CredentialVerifier | 0xa2955E78f0067FEC660c31Ba2aeed57fAd7DD897 |
-
-Verify on Etherscan: [sepolia.etherscan.io](https://sepolia.etherscan.io)
-
----
-
-## Quick Command Reference
-
-| Task | Directory | Command |
-|---|---|---|
-| Install Foundry deps | project root | `forge install` |
-| Compile contracts | project root | `forge build` |
-| Run all tests | project root | `forge test -vv` |
-| Run rubric tests | project root | `forge test --match-contract RubricTests -vv` |
-| Coverage report | project root | `forge coverage --report summary` |
-| Gas report | project root | `forge test --gas-report` |
-| Deploy contracts | project root | `forge script scripts/Deploy.s.sol:Deploy --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast` |
-| Install frontend deps | frontend/ | `npm install` |
-| Run frontend dev | frontend/ | `npm run dev` |
-| Build frontend | frontend/ | `npm run build` |
-
----
-
 ## Security Notes
 
-- Only the keccak256 hash of identity documents is stored on-chain — never raw documents (GDPR Article 17)
-- Documents are AES-256-GCM encrypted in the browser before IPFS upload
-- Only the assigned verifier can decrypt documents using MetaMask's `eth_decrypt`
-- ReentrancyGuard applied to all ETH-transferring functions in KYCGatedAuction
-- Pull-payment pattern used — no ETH is pushed to bidders automatically
-- AccessControl (OpenZeppelin) used for role separation: DEFAULT_ADMIN_ROLE and VERIFIER_ROLE
-- ZK age proofs use Groth16 (BN254) — birthdate never leaves the browser
+- only hashes, public keys, and trust state are stored on-chain
+- raw identity documents should remain off-chain
+- OpenZeppelin `AccessControl` is used for verifier/admin separation
+- `Pausable` is used for emergency stops
+- bitmap revocation reduces storage overhead for credential invalidation
+- the mock verifier is for tests only; production should use a real verifier contract
+
+---
+
+## Why This Design Matters
+
+- **Privacy**: sensitive identity material stays off-chain
+- **Auditability**: verifier actions and status changes are transparent
+- **Revocability**: trust can be updated cleanly when circumstances change
+- **Extensibility**: supports both simple identity flows and richer credential-based designs
+- **Composability**: verification logic can be reused by other contracts and applications
+
+---
+
+## Limitations
+
+- raw document review still happens off-chain
+- the repository uses a mock verifier for local proof testing
+- the verifier-managed identity flow and credential flow are complementary, not unified into one production protocol
+- end-to-end frontend and encrypted document handling depend on the final GitHub repo implementation
+
+---
+
+## Team Note
+
+This repository is designed as both an academic project submission and a practical foundation for decentralised identity experiments. It prioritizes modularity, privacy-aware design, role-based security, and demonstrable smart contract engineering.
+
+
