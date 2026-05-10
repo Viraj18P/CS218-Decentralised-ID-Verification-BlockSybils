@@ -7,7 +7,7 @@
 | Subhanshu Kumar | Roll No. |
 | Yash Pankaj Choudhary | Roll No. |
 | Akarsh Raj | Roll No. |
-| Khaled Mohd. Abdul Qader | Roll No. |
+| Khaled M. Abdul Qader | 240001041 |
 | Shlok Parikh | Roll No. |
 
 ---
